@@ -1,0 +1,28 @@
+{
+	"legal_ev": {
+		"name": "I am aware and want to proceed",
+		"changes": [],
+		"msg": "Terms accepted.",
+		"locations": ["legal"],
+		"teleport": "name"
+	},
+	"name_ev": {
+		"name": "What is your name?",
+		"changes": [],
+		"msg": "Type your name.",
+		"locations": ["name"],
+		"teleport": "player_bedroom"
+	},
+	"sleep": {
+		"name": "Sleep",
+		"changes": [{ "target": "player", "stat": "Energy", "action": "add", "amount": 100 }],
+		"msg": "You wake up feeling invigorated.",
+		"locations": ["player_bedroom"]
+	},
+	"exercise": {
+		"name": "Exercise",
+		"changes": [{ "target": "player", "stat": "Energy", "action": "sub", "amount": 10 }],
+		"msg": "You do a few pushups.",
+		"locations": ["player_bedroom"]
+	}
+}

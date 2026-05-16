@@ -1,0 +1,34 @@
+my-sandbox-sim/
+│
+├── package.json                # Electron app configuration
+├── main.js                     # Electron main process (reads files, handles IPC)
+├── preload.js                  # Safe bridge for Context Isolation (CRITICAL)
+│
+├── src/                        # ENGINE CODE (Logic only, no content)
+│   ├── index.html              # Main UI layout
+│   ├── engine/                 # GAME LOGIC (pure systems)
+│   │   ├── engine.js           # Core runtime (state, events, flow)
+│   │   ├── dataRegistry.js     # Compile + merge system
+│   │   └── dataLoader.js       # IPC wrapper for loading data
+│   │
+│   ├── config.js               # Global flags
+│   ├── dataLoader.js           # Invokes IPC to load raw JSON safely
+│   ├── dataRegistry.js         # Merges base + mods, handles conflicts
+│   └── ui                      # UI elements and components folder
+│       ├── components          # Reusable UI pieces
+│       └── ui.js               # DOM manipulation and rendering
+│
+├── data/                       # BASE GAME CONTENT (Data only)
+│   ├── stats.json         
+│   ├── locations.json     
+│   ├── npcs.json          
+│   └── events.json        
+│
+├── mods/                       # MODDING DIRECTORY
+│   └── my_first_mod/      
+│       ├── mod.json            # Metadata and load order definition
+│       ├── locations.json      # Adds or overwrites locations
+│       └── npcs.json      
+│
+└── saves/                      # MUTABLE STATE
+    └── save1.json              # Serialized gameState
