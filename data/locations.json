@@ -1,18 +1,6 @@
 {
-	"prologue": {
-		"name": "Welcome to GameName",
-		"description": "This is a work of fiction blablabla no one is real and yadda yadda also might contain flashing images"
-	},
-	"name": {
-		"name": "Hello!",
-		"description": "Before going in, I need your starting name."
-	},
 	"player_bedroom": {
 		"name": "Your Bedroom",
 		"description": "A cozy, quiet room."
-	},
-	"legal": {
-		"name": "Welcome to GameName",
-		"description": "This is a work of fiction blablabla no one is real and yadda yadda also might contain flashing images"
 	}
 }

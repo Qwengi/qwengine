@@ -1,0 +1,36 @@
+{
+	"intro": {
+		"start": "legal",
+		"steps": {
+			"legal": {
+				"name": "Welcome to GameName",
+				"description": "This is a work of fiction blablabla no one is real and yadda yadda also might contain flashing images.",
+				"choices": {
+					"continue": {
+						"name": "I am aware and want to proceed",
+						"next": "name"
+					}
+				}
+			},
+			"name": {
+				"name": "Hello!",
+				"description": "Before going in, I need your starting name.",
+				"input": {
+					"id": "player_name",
+					"label": "Player name",
+					"placeholder": "Enter your name...",
+					"entity": "player",
+					"field": "name",
+					"required": true,
+					"minLength": 1,
+					"maxLength": 32
+				},
+				"proceed": {
+					"name": "Continue",
+					"msg": "Name confirmed.",
+					"teleport": "player_bedroom"
+				}
+			}
+		}
+	}
+}

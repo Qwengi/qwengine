@@ -1,5 +1,6 @@
 const Config = {
-	starting_location: "legal",
+	starting_scene: "intro",
+	starting_location: "player_bedroom",
 
 	enable_images: true,
 

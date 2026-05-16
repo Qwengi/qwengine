@@ -1,7 +1,7 @@
 {
 	"entities": {
 		"player": {
-			"name": "m1",
+			"name": "",
 			"stats": {
 				"Happiness": { "value": 100, "max": 100, "type": "resource" },
 				"Energy": { "value": 100, "max": 100, "type": "resource" },

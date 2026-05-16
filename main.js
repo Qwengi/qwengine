@@ -29,6 +29,13 @@ const readJson = (filePath) => {
 	}
 };
 
+const resolveDataAsset = (assetPath, baseDir) => {
+	if (!assetPath || typeof assetPath !== "string") return assetPath;
+	if (assetPath.startsWith("http") || assetPath.startsWith("file://")) return assetPath;
+
+	return pathToFileURL(path.join(baseDir, assetPath)).href;
+};
+
 const processLocations = (locations, baseDir) => {
 	if (!locations) return {};
 
@@ -36,13 +43,30 @@ const processLocations = (locations, baseDir) => {
 
 	for (const key in locations) {
 		const loc = { ...locations[key] };
+		loc.image = resolveDataAsset(loc.image, baseDir);
+		result[key] = loc;
+	}
 
-		if (loc.image && !loc.image.startsWith("http") && !loc.image.startsWith("file://")) {
-			const absPath = path.join(baseDir, loc.image);
-			loc.image = pathToFileURL(absPath).href;
+	return result;
+};
+
+const processScenes = (scenes, baseDir) => {
+	if (!scenes) return {};
+
+	const result = {};
+
+	for (const [sceneId, sceneData] of Object.entries(scenes)) {
+		const scene = { ...sceneData };
+		const steps = {};
+
+		for (const [stepId, stepData] of Object.entries(scene.steps || {})) {
+			const step = { ...stepData };
+			step.image = resolveDataAsset(step.image, baseDir);
+			steps[stepId] = step;
 		}
 
-		result[key] = loc;
+		scene.steps = steps;
+		result[sceneId] = scene;
 	}
 
 	return result;
@@ -71,6 +95,7 @@ app.whenReady().then(() => {
 					locations: processLocations(readJson(path.join(dataDir, "locations.json")) || {}, dataDir),
 					npcs: readJson(path.join(dataDir, "npcs.json")) || {},
 					events: readJson(path.join(dataDir, "events.json")) || {},
+					scenes: processScenes(readJson(path.join(dataDir, "scenes.json")) || {}, dataDir),
 					items: baseItemsRaw.items || {},
 					traits: baseTraitsRaw.traits || {},
 				},
@@ -102,6 +127,7 @@ app.whenReady().then(() => {
 							locations: processLocations(readJson(path.join(modDir, "locations.json")) || {}, modDir),
 							npcs: readJson(path.join(modDir, "npcs.json")) || {},
 							events: readJson(path.join(modDir, "events.json")) || {},
+							scenes: processScenes(readJson(path.join(modDir, "scenes.json")) || {}, modDir),
 							items: modItemsRaw.items || {},
 							traits: modTraitsRaw.traits || {},
 						};

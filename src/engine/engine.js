@@ -40,7 +40,7 @@ const Engine = {
 	},
 
 	resetState: function () {
-		let startLoc = Config.starting_location;
+		let startLoc = this.getConfiguredStartLocation();
 		if (!this.data.locations[startLoc]) {
 			startLoc = Object.keys(this.data.locations)[0] || "unknown";
 		}
@@ -50,6 +50,27 @@ const Engine = {
 			entities: structuredClone(this.data.entities || {}),
 			activeShop: null,
 		};
+	},
+
+	getConfiguredStartLocation: function () {
+		const sceneId = Config.starting_scene || Config.startingScene;
+		if (sceneId && this.data.scenes?.[sceneId]?.start_location) {
+			return this.data.scenes[sceneId].start_location;
+		}
+
+		return Config.starting_location;
+	},
+
+	resolveLocationId: function (locId) {
+		if (this.data.locations[locId]) return locId;
+
+		for (const [sceneId, scene] of Object.entries(this.data.scenes || {})) {
+			if (scene?.steps?.[locId]) {
+				return `scene:${sceneId}:${locId}`;
+			}
+		}
+
+		return locId;
 	},
 
 	getEntity: function (id = "player") {
@@ -375,14 +396,145 @@ const Engine = {
 		return roll < Math.max(0, Math.min(100, prob));
 	},
 
+	getEventInputs: function (eventData) {
+		if (!eventData) return [];
+
+		const inputs = [];
+		const addInputs = (value) => {
+			if (Array.isArray(value)) {
+				value.forEach((item) => addInputs(item));
+			} else if (value && typeof value === "object") {
+				inputs.push(value);
+			}
+		};
+
+		addInputs(eventData.input);
+		addInputs(eventData.inputs);
+
+		return inputs;
+	},
+
+	getInputId: function (input, index = 0) {
+		return input.id || input.field || input.stat || input.state || `input_${index}`;
+	},
+
+	normalizeInputValue: function (input, rawValue) {
+		if (rawValue === undefined || rawValue === null) return "";
+
+		const value = String(rawValue);
+		return input.trim === false ? value : value.trim();
+	},
+
+	validateInputValue: function (input, rawValue) {
+		const value = this.normalizeInputValue(input, rawValue);
+		const minLength = input.minLength ?? input.min_length;
+		const maxLength = input.maxLength ?? input.max_length;
+
+		if (input.required !== false && value.length === 0) {
+			return { valid: false, value, message: input.required_msg || "A value is required before proceeding." };
+		}
+
+		if (minLength !== undefined && value.length < Number(minLength)) {
+			return { valid: false, value, message: input.min_msg || `Enter at least ${minLength} characters.` };
+		}
+
+		if (maxLength !== undefined && value.length > Number(maxLength)) {
+			return { valid: false, value, message: input.max_msg || `Enter no more than ${maxLength} characters.` };
+		}
+
+		if (input.pattern) {
+			let matchesPattern = false;
+
+			try {
+				matchesPattern = new RegExp(input.pattern).test(value);
+			} catch (err) {
+				console.warn(`[Engine] Invalid input pattern '${input.pattern}'.`, err);
+				return { valid: false, value, message: "The input validation pattern is invalid." };
+			}
+
+			if (!matchesPattern) {
+				return { valid: false, value, message: input.pattern_msg || "The entered value is not valid." };
+			}
+		}
+
+		return { valid: true, value };
+	},
+
+	validateEventInputs: function (eventData, payload = {}) {
+		const inputs = this.getEventInputs(eventData);
+		const payloadInputs = payload?.inputs || {};
+		const values = {};
+
+		for (let index = 0; index < inputs.length; index++) {
+			const input = inputs[index];
+			const id = this.getInputId(input, index);
+			const rawValue = payloadInputs[id] ?? payload?.[id] ?? "";
+			const result = this.validateInputValue(input, rawValue);
+
+			values[id] = result.value;
+
+			if (!result.valid) {
+				return { valid: false, message: result.message, values };
+			}
+		}
+
+		return { valid: true, values };
+	},
+
+	isSafeDataKey: function (key) {
+		return key && !["__proto__", "constructor", "prototype"].includes(key);
+	},
+
+	applyEventInputs: function (eventData, payload = {}, validation = null) {
+		const inputs = this.getEventInputs(eventData);
+		if (inputs.length === 0) return true;
+
+		const inputValidation = validation || this.validateEventInputs(eventData, payload);
+		if (!inputValidation.valid) {
+			UI.log(inputValidation.message || "Invalid input.", false, "#f87171");
+			return false;
+		}
+
+		inputs.forEach((input, index) => {
+			const id = this.getInputId(input, index);
+			const value = inputValidation.values[id];
+
+			if (input.field) {
+				const entityId = input.entity || input.target || "player";
+				const entity = this.getEntity(entityId);
+
+				if (!entity) return;
+				if (!this.isSafeDataKey(input.field)) {
+					console.warn(`[Engine] Unsafe input field '${input.field}' ignored.`);
+					return;
+				}
+
+				entity[input.field] = value;
+				return;
+			}
+
+			if (input.state) {
+				if (!this.isSafeDataKey(input.state)) {
+					console.warn(`[Engine] Unsafe state field '${input.state}' ignored.`);
+					return;
+				}
+
+				this.state[input.state] = value;
+			}
+		});
+
+		return true;
+	},
+
 	moveTo: function (locId) {
-		const loc = this.data.locations[locId];
+		const resolvedLocId = this.resolveLocationId(locId);
+		const loc = this.data.locations[resolvedLocId];
 		if (!loc) {
 			console.warn(`[Engine] Unknown location '${locId}'.`);
 			return;
 		}
 
-		this.state.location = locId;
+		this.state.location = resolvedLocId;
 		this.state.activeShop = null; // Clear shop when moving
 		UI.log(`Moved to ${loc.name || locId}.`, true);
 		UI.renderView(this.data, this.state);
@@ -536,7 +688,12 @@ const Engine = {
 		}
 	},
 
-	triggerEvent: function (eventId, depth = 0) {
+	triggerEvent: function (eventId, payload = {}, depth = 0) {
+		if (typeof payload === "number") {
+			depth = payload;
+			payload = {};
+		}
+
 		if (depth > this.settings.max_event_depth) {
 			console.warn(`[Engine] Max recursion reached at '${eventId}'.`);
 			return;
@@ -550,9 +707,15 @@ const Engine = {
 
 		if (!this.checkConditions(ev.conditions)) return;
 
+		const inputValidation = this.validateEventInputs(ev, payload);
+		if (!inputValidation.valid) {
+			UI.log(inputValidation.message || "Invalid input.", false, "#f87171");
+			return;
+		}
+
 		if (ev.chance && !this.calculateChance(ev.chance)) {
 			if (ev.chance.trigger_msg) UI.log(ev.chance.trigger_msg);
-			if (ev.chance.trigger_event) this.triggerEvent(ev.chance.trigger_event, depth + 1);
+			if (ev.chance.trigger_event) this.triggerEvent(ev.chance.trigger_event, {}, depth + 1);
 			if (ev.chance.trigger_teleport) this.moveTo(ev.chance.trigger_teleport);
 			return;
 		}
@@ -569,6 +732,7 @@ const Engine = {
 			});
 		}
 
+		this.applyEventInputs(ev, payload, inputValidation);
 		this.applyChanges(changes);
 
 		if (ev.msg) UI.log(ev.msg, true);
@@ -596,8 +760,17 @@ const Engine = {
 			this.state.entities = DataRegistry.deepMerge(baseEntities, loaded.entities || {});
 
 			if (!this.data.locations[this.state.location]) {
-				UI.log(`[Warning] Saved location '${this.state.location}' is missing. Relocating...`, false, "#f59e0b");
-				this.state.location = Object.keys(this.data.locations)[0] || "home";
+				const resolvedLocId = this.resolveLocationId(this.state.location);
+
+				if (this.data.locations[resolvedLocId]) {
+					this.state.location = resolvedLocId;
+				} else {
+					UI.log(`[Warning] Saved location '${this.state.location}' is missing. Relocating...`, false, "#f59e0b");
+					this.state.location = this.getConfiguredStartLocation();
+					if (!this.data.locations[this.state.location]) {
+						this.state.location = Object.keys(this.data.locations)[0] || "home";
+					}
+				}
 			}
 
 			UI.renderView(this.data, this.state);

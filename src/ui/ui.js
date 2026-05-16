@@ -32,10 +32,13 @@ const UI = {
 		if (sidebarContainer) {
 			sidebarContainer.innerHTML = `
 				<div class="mb-6 pb-4 border-b border-slate-800 shrink-0">
-					<h2 class="text-2xl font-bold text-indigo-400">Player Profile</h2>
+					<h2 data-player-name class="text-2xl font-bold text-indigo-400">Player Profile</h2>
 					<p class="text-xs text-slate-500 mt-1">Your core attributes and skills</p>
 				</div>
 			`;
+
+			const playerNameEl = sidebarContainer.querySelector("[data-player-name]");
+			if (playerNameEl) playerNameEl.textContent = player.name || "Player Profile";
 		}
 
 		const typeStyles = {
@@ -406,8 +409,8 @@ const UI = {
 				"Actions",
 				loc.events,
 				data.events,
-				(id) => {
-					Engine.triggerEvent(id);
+				(id, payload) => {
+					Engine.triggerEvent(id, payload);
 				},
 				false,
 			),
@@ -454,18 +457,40 @@ const UI = {
 
 			if (hideIfLocked && !meetsConditions) return;
 
+			const inputDefs = label === "Actions" && Engine.getEventInputs ? Engine.getEventInputs(item) : [];
+			const inputEls = new Map();
+			const collectPayload = () => {
+				const values = {};
+
+				inputDefs.forEach((input, index) => {
+					const inputId = Engine.getInputId(input, index);
+					values[inputId] = inputEls.get(inputId)?.value || "";
+				});
+
+				return { inputs: values };
+			};
+
 			const button = document.createElement("button");
 			button.className = "px-5 py-2.5 flex items-center gap-2 rounded-xl text-sm transition-all border shadow-sm";
 
-			const isDisabled = !hideIfLocked && !meetsConditions;
+			const setButtonState = () => {
+				const inputIsValid = inputDefs.length === 0 || Engine.validateEventInputs(item, collectPayload()).valid;
+				const isDisabled = !meetsConditions || !inputIsValid;
 
-			if (isDisabled) {
-				button.disabled = true;
-				button.classList.add("bg-slate-800/50", "text-slate-500", "border-slate-800", "cursor-not-allowed");
-			} else {
-				button.classList.add("bg-indigo-600", "hover:bg-indigo-500", "text-white", "border-indigo-400", "active:scale-95");
-				button.addEventListener("click", () => handler(id));
-			}
+				button.disabled = isDisabled;
+				button.className = "px-5 py-2.5 flex items-center gap-2 rounded-xl text-sm transition-all border shadow-sm";
+
+				if (isDisabled) {
+					button.classList.add("bg-slate-800/50", "text-slate-500", "border-slate-800", "cursor-not-allowed");
+				} else {
+					button.classList.add("bg-indigo-600", "hover:bg-indigo-500", "text-white", "border-indigo-400", "active:scale-95");
+				}
+			};
+
+			button.addEventListener("click", () => {
+				if (button.disabled) return;
+				handler(id, collectPayload());
+			});
 
 			const icon = document.createElement("span");
 			icon.className = "text-lg";
@@ -478,7 +503,44 @@ const UI = {
 			button.appendChild(icon);
 			button.appendChild(text);
 
-			wrapper.appendChild(button);
+			if (inputDefs.length > 0) {
+				const controlGroup = document.createElement("div");
+				controlGroup.className = "flex flex-wrap gap-3 items-center";
+
+				inputDefs.forEach((input, index) => {
+					const inputId = Engine.getInputId(input, index);
+					const inputEl = document.createElement("input");
+
+					inputEl.type = input.type || "text";
+					inputEl.className =
+						"px-3 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-slate-200 min-w-[220px] focus:outline-none focus:border-indigo-400 placeholder-slate-600";
+					inputEl.placeholder = input.placeholder || input.label || "";
+					inputEl.value = input.value || "";
+					inputEl.autocomplete = input.autocomplete || "off";
+					inputEl.setAttribute("aria-label", input.label || input.placeholder || "Input");
+
+					if (input.maxLength !== undefined || input.max_length !== undefined) {
+						inputEl.maxLength = Number(input.maxLength ?? input.max_length);
+					}
+
+					inputEl.addEventListener("input", setButtonState);
+					inputEl.addEventListener("keydown", (event) => {
+						if (event.key === "Enter" && !button.disabled) {
+							button.click();
+						}
+					});
+
+					inputEls.set(inputId, inputEl);
+					controlGroup.appendChild(inputEl);
+				});
+
+				controlGroup.appendChild(button);
+				wrapper.appendChild(controlGroup);
+			} else {
+				wrapper.appendChild(button);
+			}
+
+			setButtonState();
 			hasVisible = true;
 		});
 

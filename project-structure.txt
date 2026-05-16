@@ -19,16 +19,18 @@ my-sandbox-sim/
 │       └── ui.js               # DOM manipulation and rendering
 │
 ├── data/                       # BASE GAME CONTENT (Data only)
-│   ├── stats.json         
-│   ├── locations.json     
-│   ├── npcs.json          
-│   └── events.json        
+│   ├── stats.json
+│   ├── locations.json
+│   ├── scenes.json
+│   ├── npcs.json
+│   └── events.json
 │
 ├── mods/                       # MODDING DIRECTORY
 │   └── my_first_mod/      
 │       ├── mod.json            # Metadata and load order definition
 │       ├── locations.json      # Adds or overwrites locations
-│       └── npcs.json      
+│       ├── scenes.json         # Adds or overwrites scripted scene flows
+│       └── npcs.json
 │
 └── saves/                      # MUTABLE STATE
     └── save1.json              # Serialized gameState
