@@ -1,0 +1,257 @@
+/**
+ * Main world/location renderer.
+ *
+ * Purpose:
+ * This file renders the central play surface for the current location. It owns
+ * location title/description/image layout and reusable button sections for NPCs,
+ * actions, and travel. It delegates player sidebars and shop details to sibling
+ * renderers.
+ *
+ * Responsibilities:
+ * - Render the active location into #ui-container.
+ * - Render optional location images using Config constraints.
+ * - Build NPC, action, and travel sections.
+ * - Render data-driven typed inputs for actions that require event input.
+ * - Delegate player panels and active shop sections to focused renderers.
+ *
+ * Interactions:
+ * - Reads compiled locations, npcs, events, and items through the `data` arg.
+ * - Reads current runtime state through the `state` arg.
+ * - Calls Engine.talkTo, Engine.triggerEvent, Engine.moveTo, Engine.checkConditions,
+ *   Engine.getEventInputs, Engine.getInputId, and Engine.validateEventInputs.
+ * - Calls PlayerPanelRenderer and ShopRenderer after main location layout.
+ *
+ * What does not belong here:
+ * - Activity log rendering, save/load list rendering, stat/effect calculations,
+ *   item mutation rules, event execution internals, or data registry compilation.
+ *
+ * Architectural assumptions and constraints:
+ * - This file is loaded before src/ui/ui.js and contributes the global
+ *   WorldViewRenderer object.
+ * - Renderer functions create DOM from current state; they should not store
+ *   persistent UI state outside DOM inputs.
+ * - Event input controls pass payloads to Engine; validation rules live in the
+ *   engine input system so UI and runtime stay consistent.
+ *
+ * Important APIs:
+ * - WorldViewRenderer.renderView(data, state)
+ * - WorldViewRenderer.createSection(label, list, sourceData, handler, hideIfLocked)
+ *
+ * Common risks:
+ * - Duplicating engine validation here can desync button enabled state from
+ *   actual event execution. Always use Engine.validateEventInputs.
+ * - Moving player panel rendering elsewhere can leave sidebars stale after an
+ *   event rerender.
+ *
+ * Related files:
+ * - src/ui/ui.js exposes this renderer through UI.renderView.
+ * - src/ui/renderers/playerPanels.js renders the player sidebars.
+ * - src/ui/renderers/shopRenderer.js renders active shop sections.
+ * - src/engine/systems/eventSystem.js executes action button events.
+ */
+const WorldViewRenderer = {
+	renderView(data, state) {
+		const loc = data.locations[state.location];
+		const container = document.getElementById("ui-container");
+
+		if (!loc || !container) return;
+
+		container.innerHTML = "";
+
+		const title = document.createElement("h2");
+		title.className = "text-4xl font-bold text-white mb-2";
+		title.textContent = loc.name || state.location;
+
+		const desc = document.createElement("p");
+		desc.className = "text-slate-300 text-lg mb-8 italic";
+		desc.textContent = loc.description || "";
+
+		container.appendChild(title);
+		container.appendChild(desc);
+
+		if (Config?.enable_images && loc.image) {
+			const imgWrapper = document.createElement("div");
+			imgWrapper.className = "mb-8 overflow-hidden rounded-lg shadow-2xl border border-slate-700/50 bg-slate-950 flex justify-center";
+
+			const img = document.createElement("img");
+			img.src = loc.image;
+			img.className = "max-w-full object-contain";
+
+			if (Config.global_max_image_height > 0) {
+				img.style.height = `${Config.global_max_image_height}px`;
+				img.style.width = "auto";
+			} else if (Config.global_max_image_width > 0) {
+				img.style.width = `${Config.global_max_image_width}px`;
+				img.style.height = "auto";
+			}
+
+			img.onerror = () => (img.style.display = "none");
+
+			imgWrapper.appendChild(img);
+			container.appendChild(imgWrapper);
+		}
+
+		container.appendChild(
+			this.createSection(
+				"NPCs",
+				loc.npcs,
+				data.npcs,
+				(id) => {
+					Engine.talkTo(id);
+				},
+				true,
+			),
+		);
+
+		if (state.activeShop && data.npcs[state.activeShop]?.shop) {
+			container.appendChild(ShopRenderer.createShopSection(state.activeShop, data));
+		}
+
+		container.appendChild(
+			this.createSection(
+				"Actions",
+				loc.events,
+				data.events,
+				(id, payload) => {
+					Engine.triggerEvent(id, payload);
+				},
+				false,
+			),
+		);
+
+		container.appendChild(
+			this.createSection(
+				"Travel",
+				loc.connections,
+				data.locations,
+				(id) => {
+					Engine.moveTo(id);
+				},
+				false,
+			),
+		);
+
+		PlayerPanelRenderer.renderStats(state.entities.player);
+		PlayerPanelRenderer.renderTraits(state.entities.player, data);
+		PlayerPanelRenderer.renderEquipment(state.entities.player, data);
+		PlayerPanelRenderer.renderInventory(state.entities.player, data);
+	},
+
+	createSection(label, list, sourceData, handler, hideIfLocked) {
+		if (!Array.isArray(list) || list.length === 0) return document.createDocumentFragment();
+
+		const section = document.createElement("div");
+		section.className = "mb-6";
+
+		const title = document.createElement("h3");
+		title.className = "text-xs text-slate-500 uppercase tracking-widest mb-3 font-bold";
+		title.textContent = label;
+
+		const wrapper = document.createElement("div");
+		wrapper.className = "flex flex-wrap gap-3";
+
+		let hasVisible = false;
+
+		list.forEach((id) => {
+			const item = sourceData[id];
+			if (!item) return;
+
+			const meetsConditions = Engine.checkConditions(item.conditions);
+
+			if (hideIfLocked && !meetsConditions) return;
+
+			const inputDefs = label === "Actions" && Engine.getEventInputs ? Engine.getEventInputs(item) : [];
+			const inputEls = new Map();
+			const collectPayload = () => {
+				const values = {};
+
+				inputDefs.forEach((input, index) => {
+					const inputId = Engine.getInputId(input, index);
+					values[inputId] = inputEls.get(inputId)?.value || "";
+				});
+
+				return { inputs: values };
+			};
+
+			const button = document.createElement("button");
+			button.className = "px-5 py-2.5 flex items-center gap-2 rounded-xl text-sm transition-all border shadow-sm";
+
+			const setButtonState = () => {
+				const inputIsValid = inputDefs.length === 0 || Engine.validateEventInputs(item, collectPayload()).valid;
+				const isDisabled = !meetsConditions || !inputIsValid;
+
+				button.disabled = isDisabled;
+				button.className = "px-5 py-2.5 flex items-center gap-2 rounded-xl text-sm transition-all border shadow-sm";
+
+				if (isDisabled) {
+					button.classList.add("bg-slate-800/50", "text-slate-500", "border-slate-800", "cursor-not-allowed");
+				} else {
+					button.classList.add("bg-indigo-600", "hover:bg-indigo-500", "text-white", "border-indigo-400", "active:scale-95");
+				}
+			};
+
+			button.addEventListener("click", () => {
+				if (button.disabled) return;
+				handler(id, collectPayload());
+			});
+
+			const icon = document.createElement("span");
+			icon.className = "text-lg";
+			icon.textContent = label === "NPCs" ? "💬" : label === "Actions" ? "✨" : "🚶";
+
+			const text = document.createElement("span");
+			text.className = "font-semibold";
+			text.textContent = item.name || id;
+
+			button.appendChild(icon);
+			button.appendChild(text);
+
+			if (inputDefs.length > 0) {
+				const controlGroup = document.createElement("div");
+				controlGroup.className = "flex flex-wrap gap-3 items-center";
+
+				inputDefs.forEach((input, index) => {
+					const inputId = Engine.getInputId(input, index);
+					const inputEl = document.createElement("input");
+
+					inputEl.type = input.type || "text";
+					inputEl.className =
+						"px-3 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-slate-200 min-w-[220px] focus:outline-none focus:border-indigo-400 placeholder-slate-600";
+					inputEl.placeholder = input.placeholder || input.label || "";
+					inputEl.value = input.value || "";
+					inputEl.autocomplete = input.autocomplete || "off";
+					inputEl.setAttribute("aria-label", input.label || input.placeholder || "Input");
+
+					if (input.maxLength !== undefined || input.max_length !== undefined) {
+						inputEl.maxLength = Number(input.maxLength ?? input.max_length);
+					}
+
+					inputEl.addEventListener("input", setButtonState);
+					inputEl.addEventListener("keydown", (event) => {
+						if (event.key === "Enter" && !button.disabled) {
+							button.click();
+						}
+					});
+
+					inputEls.set(inputId, inputEl);
+					controlGroup.appendChild(inputEl);
+				});
+
+				controlGroup.appendChild(button);
+				wrapper.appendChild(controlGroup);
+			} else {
+				wrapper.appendChild(button);
+			}
+
+			setButtonState();
+			hasVisible = true;
+		});
+
+		if (!hasVisible) return document.createDocumentFragment();
+
+		section.appendChild(title);
+		section.appendChild(wrapper);
+
+		return section;
+	},
+};

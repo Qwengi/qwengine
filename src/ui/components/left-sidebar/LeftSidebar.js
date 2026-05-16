@@ -1,3 +1,47 @@
+/**
+ * Collapsible left sidebar web component.
+ *
+ * Purpose:
+ * This file defines the <left-sidebar> custom element used by src/index.html to
+ * host player stats, traits, equipment, inventory, and save/load panels. The
+ * component owns tab chrome, collapse behavior, shadow DOM styling, and icon
+ * loading while leaving panel content rendering to the normal light DOM.
+ *
+ * Responsibilities:
+ * - Render sidebar frame, tab handles, and collapsed/expanded behavior.
+ * - Observe slotted children and create corresponding tab handles.
+ * - Keep active tab visibility in sync with component attributes.
+ * - Load SVG tab icons and normalize their colors to currentColor.
+ *
+ * Interactions:
+ * - Used directly by src/index.html as a custom element.
+ * - Slotted panel contents are populated by UI renderers and inline save/load UI.
+ * - Loads SVG assets by relative URL from the renderer page.
+ *
+ * What does not belong here:
+ * - Game state mutation, player stat rendering, inventory rendering, save/load
+ *   logic, event execution, or content data compilation.
+ *
+ * Architectural assumptions and constraints:
+ * - This file is an ES module because index.html loads it with type="module".
+ * - The component uses shadow DOM for frame styling but light DOM for panel
+ *   content so existing renderers can target slotted element ids.
+ * - Children with data-position="bottom" render tab handles after the spacer.
+ *
+ * Important APIs:
+ * - Custom element name: left-sidebar
+ * - Attributes: collapsed, active-tab
+ * - Child attributes: data-icon, data-label, data-position
+ *
+ * Common risks:
+ * - Moving panel content into shadow DOM would break UI renderers that query
+ *   document-level ids.
+ * - Icon paths are relative to src/index.html, not this file's folder.
+ *
+ * Related files:
+ * - src/index.html declares the sidebar and slotted panels.
+ * - src/ui/renderers/playerPanels.js fills several sidebar panels.
+ */
 class LeftSidebar extends HTMLElement {
 	static get observedAttributes() {
 		return ["collapsed", "active-tab"];

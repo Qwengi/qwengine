@@ -7,15 +7,21 @@ my-sandbox-sim/
 ├── src/                        # ENGINE CODE (Logic only, no content)
 │   ├── index.html              # Main UI layout
 │   ├── engine/                 # GAME LOGIC (pure systems)
-│   │   ├── engine.js           # Core runtime (state, events, flow)
+│   │   ├── engine.js           # Runtime composition root and boot coordinator
 │   │   ├── dataRegistry.js     # Compile + merge system
-│   │   └── dataLoader.js       # IPC wrapper for loading data
+│   │   ├── dataLoader.js       # IPC wrapper for loading data
+│   │   └── systems/            # Focused runtime systems mixed into Engine
+│   │       ├── worldSystem.js
+│   │       ├── entitySystem.js
+│   │       ├── inputSystem.js
+│   │       ├── inventorySystem.js
+│   │       ├── eventSystem.js
+│   │       └── saveSystem.js
 │   │
 │   ├── config.js               # Global flags
-│   ├── dataLoader.js           # Invokes IPC to load raw JSON safely
-│   ├── dataRegistry.js         # Merges base + mods, handles conflicts
 │   └── ui                      # UI elements and components folder
 │       ├── components          # Reusable UI pieces
+│       ├── renderers           # Focused DOM renderers behind the UI facade
 │       └── ui.js               # DOM manipulation and rendering
 │
 ├── data/                       # BASE GAME CONTENT (Data only)

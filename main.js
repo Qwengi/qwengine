@@ -1,3 +1,53 @@
+/**
+ * Electron main-process entry point and trusted filesystem bridge.
+ *
+ * Purpose:
+ * This file runs outside the renderer sandbox and owns window creation plus the
+ * IPC handlers that read game data, read mods, and persist saves. It is the
+ * only project-owned JavaScript file that should directly access Node fs/path
+ * APIs for core game data at runtime.
+ *
+ * Responsibilities:
+ * - Create the BrowserWindow and load src/index.html.
+ * - Ensure base data, mods, and saves directories exist.
+ * - Read JSON content from data/ and mods/ folders.
+ * - Resolve relative image paths in locations and scenes into file URLs.
+ * - Shape raw base/mod data for DataRegistry.compile in the renderer.
+ * - Save, load, and list save slots through IPC.
+ *
+ * Interactions:
+ * - Exposes handlers consumed by preload.js/DataLoader in the renderer.
+ * - Reads data/*.json and mods/<mod>/*.json.
+ * - Writes saves/<slot>.json.
+ * - Does not call Engine or UI directly; renderer code handles gameplay.
+ *
+ * What does not belong here:
+ * - Runtime game rules, event execution, stat logic, UI rendering, editor UI,
+ *   save-state interpretation, or mod conflict resolution.
+ *
+ * Architectural assumptions and constraints:
+ * - Renderer context isolation is enabled; all trusted filesystem access should
+ *   pass through narrow IPC handlers.
+ * - Mods are loaded by folder name sort order for now.
+ * - DataRegistry owns deep merge and scene compilation; this file only reads and
+ *   lightly normalizes raw JSON/assets.
+ *
+ * Important APIs:
+ * - IPC handler "load-raw-data"
+ * - IPC handler "save-game"
+ * - IPC handler "load-game"
+ * - IPC handler "list-saves"
+ *
+ * Common risks:
+ * - Expanding IPC with broad filesystem paths would weaken the sandbox.
+ * - Changing rawData shape must be coordinated with DataRegistry.compile.
+ * - Asset path normalization should stay data-folder-relative to support mods.
+ *
+ * Related files:
+ * - preload.js exposes these IPC handlers safely to the renderer.
+ * - src/engine/dataLoader.js wraps the renderer API calls.
+ * - src/engine/dataRegistry.js compiles the raw data returned here.
+ */
 const { app, BrowserWindow, ipcMain } = require("electron");
 const path = require("path");
 const fs = require("fs");

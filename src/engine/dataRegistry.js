@@ -1,3 +1,51 @@
+/**
+ * Data registry compiler and mod merge layer.
+ *
+ * Purpose:
+ * This file turns raw base/mod JSON data into the normalized runtime registry
+ * consumed by Engine. It is the boundary between author-friendly content files
+ * and efficient runtime lookup tables.
+ *
+ * Responsibilities:
+ * - Deep-merge base content and mods with safe override semantics.
+ * - Keep entities, locations, npcs, events, scenes, items, and traits in one
+ *   compiled registry object.
+ * - Compile scene authoring data into generated runtime locations and events.
+ * - Attach events and NPC ids to their declared locations.
+ *
+ * Interactions:
+ * - Consumes rawData from DataLoader/main.js.
+ * - Produces Engine.data consumed by engine systems and UI renderers.
+ * - Shares generated scene id conventions with worldSystem and saveSystem.
+ *
+ * What does not belong here:
+ * - Runtime state mutation, event execution, save/load reconciliation, DOM
+ *   rendering, Electron IPC, or editor UI behavior.
+ *
+ * Architectural assumptions and constraints:
+ * - Raw mods are already read and lightly normalized by main.js.
+ * - Scene ids compile to `scene:<sceneId>:<stepId>` locations and
+ *   `scene:<sceneId>:<stepId>:<choiceId>` events.
+ * - Deep merge skips prototype-polluting keys and uses `!` suffix for explicit
+ *   array/object replacement.
+ *
+ * Important APIs:
+ * - DataRegistry.compile(rawData)
+ * - DataRegistry.deepMerge(target, source)
+ * - DataRegistry.compileScenes(compiled)
+ * - DataRegistry.getSceneLocationId(sceneId, stepId)
+ * - DataRegistry.getSceneEventId(sceneId, stepId, choiceId)
+ *
+ * Common risks:
+ * - Changing generated scene id formats requires coordinated changes in saves,
+ *   world resolution, and authored teleports.
+ * - Overloading deepMerge semantics can make mod behavior surprising.
+ *
+ * Related files:
+ * - main.js produces rawData.
+ * - src/engine/engine.js stores the compiled result as Engine.data.
+ * - src/engine/systems/worldSystem.js and saveSystem.js depend on scene ids.
+ */
 const DataRegistry = {
 	isPlainObject(obj) {
 		return Object.prototype.toString.call(obj) === "[object Object]";
