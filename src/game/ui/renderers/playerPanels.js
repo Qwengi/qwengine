@@ -25,7 +25,7 @@
  *   beyond calling public Engine item/equipment methods from button handlers.
  *
  * Architectural assumptions and constraints:
- * - This file is loaded before src/ui/ui.js and contributes the global
+ * - This file is loaded before src/game/ui/ui.js and contributes the global
  *   PlayerPanelRenderer object.
  * - The renderer is intentionally DOM-based and does not own game state.
  * - Stat ids are displayed as authored; effective calculations come from Engine.
@@ -43,11 +43,44 @@
  *   directly from the renderer.
  *
  * Related files:
- * - src/ui/ui.js exposes these methods through the public UI facade.
- * - src/ui/renderers/worldView.js calls these after rendering the location.
- * - src/engine/systems/entitySystem.js and inventorySystem.js provide actions.
+ * - src/game/ui/ui.js exposes these methods through the public UI facade.
+ * - src/game/ui/renderers/worldView.js calls these after rendering the location.
+ * - src/game/systems/entitySystem.js and inventorySystem.js provide actions.
  */
 const PlayerPanelRenderer = {
+	clearContainer(id) {
+		const container = document.getElementById(id);
+		if (!container) return null;
+		container.innerHTML = "";
+		return container;
+	},
+
+	setEmptyState(container, message) {
+		container.innerHTML = `<p class="text-slate-500 text-sm italic">${message}</p>`;
+	},
+
+	createItemRow(name, typeLabel, rowClass, nameColor, typeColor) {
+		const row = document.createElement("div");
+		row.className = `flex justify-between items-center ${rowClass} p-3 rounded border shadow-inner mb-2 shrink-0`;
+
+		const leftCol = document.createElement("div");
+		leftCol.className = "flex flex-col";
+
+		const nameSpan = document.createElement("span");
+		nameSpan.className = `text-sm ${nameColor} font-bold`;
+		nameSpan.textContent = name;
+
+		const typeSpan = document.createElement("span");
+		typeSpan.className = `text-[10px] ${typeColor} capitalize tracking-widest`;
+		typeSpan.textContent = typeLabel;
+
+		leftCol.appendChild(nameSpan);
+		leftCol.appendChild(typeSpan);
+		row.appendChild(leftCol);
+
+		return { row, leftCol };
+	},
+
 	renderStats(player) {
 		const topContainer = document.getElementById("stats-container");
 		const sidebarContainer = document.getElementById("sidebar-attributes");
@@ -133,8 +166,13 @@ const PlayerPanelRenderer = {
 				list.className = "flex flex-col gap-2.5";
 
 				for (const [id, stat] of Object.entries(groupData)) {
+					const hasProgress = stat.progress_max !== undefined;
+
 					const row = document.createElement("div");
-					row.className = "flex justify-between items-center bg-slate-950/50 p-2.5 rounded border border-slate-800/50 shadow-inner";
+					row.className = "bg-slate-950/50 p-2.5 rounded border border-slate-800/50 shadow-inner";
+
+					const topLine = document.createElement("div");
+					topLine.className = "flex justify-between items-center";
 
 					const nameSpan = document.createElement("span");
 					nameSpan.className = "text-sm text-slate-300 font-medium capitalize";
@@ -146,8 +184,23 @@ const PlayerPanelRenderer = {
 					valSpan.className = "text-sm font-mono text-indigo-400 font-bold bg-indigo-900/30 px-2 py-0.5 rounded border border-indigo-800/50 shadow-sm";
 					valSpan.textContent = effectiveVal;
 
-					row.appendChild(nameSpan);
-					row.appendChild(valSpan);
+					topLine.appendChild(nameSpan);
+					topLine.appendChild(valSpan);
+					row.appendChild(topLine);
+
+					if (hasProgress) {
+						const factor = Config?.stat_training_diminishing_returns ?? 0;
+						const threshold = stat.progress_max * (1 + factor * stat.value);
+						const pct = Math.min(100, ((stat.progress || 0) / threshold) * 100);
+						const barWrap = document.createElement("div");
+						barWrap.className = "mt-1.5 h-1 bg-slate-800 rounded-full overflow-hidden";
+						const fill = document.createElement("div");
+						fill.className = "h-full bg-violet-500/70 rounded-full transition-all";
+						fill.style.width = `${pct}%`;
+						barWrap.appendChild(fill);
+						row.appendChild(barWrap);
+					}
+
 					list.appendChild(row);
 				}
 
@@ -159,54 +212,34 @@ const PlayerPanelRenderer = {
 	},
 
 	renderTraits(player, data) {
-		const container = document.getElementById("traits-list");
+		const container = this.clearContainer("traits-list");
 		if (!container) return;
-		container.innerHTML = "";
 
 		const hasTraits = player?.traits && player.traits.length > 0;
-
-		if (!hasTraits) {
-			container.innerHTML = '<p class="text-slate-500 text-sm italic">You have no traits.</p>';
-			return;
-		}
+		if (!hasTraits) return this.setEmptyState(container, "You have no traits.");
 
 		player.traits.forEach((traitInst) => {
 			if (!traitInst) return;
 			const traitDef = data.traits?.[traitInst.id];
 			if (!traitDef) return;
 
-			const row = document.createElement("div");
-			row.className = "flex justify-between items-center bg-rose-950/40 p-3 rounded border border-rose-800/50 shadow-inner mb-2 shrink-0";
-
-			const leftCol = document.createElement("div");
-			leftCol.className = "flex flex-col";
-			const nameSpan = document.createElement("span");
-			nameSpan.className = "text-sm text-rose-300 font-bold";
-			nameSpan.textContent = traitDef.name;
-
-			const typeSpan = document.createElement("span");
-			typeSpan.className = "text-[10px] text-rose-500 capitalize tracking-widest";
-			typeSpan.textContent = traitDef.type || "Trait";
-
-			leftCol.appendChild(nameSpan);
-			leftCol.appendChild(typeSpan);
-			row.appendChild(leftCol);
-
+			const { row } = this.createItemRow(
+				traitDef.name,
+				traitDef.type || "Trait",
+				"bg-rose-950/40 border-rose-800/50",
+				"text-rose-300",
+				"text-rose-500",
+			);
 			container.appendChild(row);
 		});
 	},
 
 	renderEquipment(player, data) {
-		const container = document.getElementById("equipment-list");
+		const container = this.clearContainer("equipment-list");
 		if (!container) return;
-		container.innerHTML = "";
 
 		const hasWornItems = player?.worn && Object.values(player.worn).some((inst) => inst !== null && inst !== undefined);
-
-		if (!hasWornItems) {
-			container.innerHTML = '<p class="text-slate-500 text-sm italic">You have nothing equipped.</p>';
-			return;
-		}
+		if (!hasWornItems) return this.setEmptyState(container, "You have nothing equipped.");
 
 		for (const [slot, itemInst] of Object.entries(player.worn)) {
 			if (!itemInst) continue;
@@ -214,22 +247,13 @@ const PlayerPanelRenderer = {
 			const itemDef = data.items[itemInst.id];
 			if (!itemDef) continue;
 
-			const row = document.createElement("div");
-			row.className = "flex justify-between items-center bg-indigo-950/40 p-3 rounded border border-indigo-800/50 shadow-inner mb-2 shrink-0";
-
-			const leftCol = document.createElement("div");
-			leftCol.className = "flex flex-col";
-			const nameSpan = document.createElement("span");
-			nameSpan.className = "text-sm text-indigo-300 font-bold";
-			nameSpan.textContent = itemDef.name;
-
-			const typeSpan = document.createElement("span");
-			typeSpan.className = "text-[10px] text-indigo-500 capitalize tracking-widest";
-			typeSpan.textContent = `Slot: ${slot}`;
-
-			leftCol.appendChild(nameSpan);
-			leftCol.appendChild(typeSpan);
-			row.appendChild(leftCol);
+			const { row } = this.createItemRow(
+				itemDef.name,
+				`Slot: ${slot}`,
+				"bg-indigo-950/40 border-indigo-800/50",
+				"text-indigo-300",
+				"text-indigo-500",
+			);
 
 			const unequipBtn = document.createElement("button");
 			unequipBtn.className = "px-4 py-1.5 bg-slate-700/90 hover:bg-slate-600 text-white rounded text-xs font-bold transition-all shadow-sm";
@@ -242,40 +266,25 @@ const PlayerPanelRenderer = {
 	},
 
 	renderInventory(player, data) {
-		const container = document.getElementById("inventory-list");
+		const container = this.clearContainer("inventory-list");
 		if (!container) return;
-		container.innerHTML = "";
 
-		const hasInventoryItems = player?.inventory?.items && player.inventory.items.length > 0;
+		const hasInventoryItems = Array.isArray(player?.inventory) && player.inventory.length > 0;
+		if (!hasInventoryItems) return this.setEmptyState(container, "Your inventory is empty.");
 
-		if (!hasInventoryItems) {
-			container.innerHTML = '<p class="text-slate-500 text-sm italic">Your inventory is empty.</p>';
-			return;
-		}
-
-		player.inventory.items.forEach((itemInst, index) => {
+		player.inventory.forEach((itemInst, index) => {
 			if (!itemInst) return;
 
 			const itemDef = data.items[itemInst.id];
 			if (!itemDef) return;
 
-			const row = document.createElement("div");
-			row.className =
-				"flex justify-between items-center bg-slate-950/50 p-3 rounded border border-slate-800/50 shadow-inner mb-2 shrink-0 transition-colors hover:bg-slate-900/50 hover:border-slate-700/80";
-
-			const leftCol = document.createElement("div");
-			leftCol.className = "flex flex-col";
-			const nameSpan = document.createElement("span");
-			nameSpan.className = "text-sm text-slate-300 font-bold";
-			nameSpan.textContent = itemDef.name + (itemInst.quantity ? ` (x${itemInst.quantity})` : "");
-
-			const typeSpan = document.createElement("span");
-			typeSpan.className = "text-[10px] text-slate-500 capitalize tracking-widest";
-			typeSpan.textContent = itemDef.type;
-
-			leftCol.appendChild(nameSpan);
-			leftCol.appendChild(typeSpan);
-			row.appendChild(leftCol);
+			const { row } = this.createItemRow(
+				itemDef.name + (itemInst.quantity ? ` (x${itemInst.quantity})` : ""),
+				itemDef.type,
+				"bg-slate-950/50 border-slate-800/50 transition-colors hover:bg-slate-900/50 hover:border-slate-700/80",
+				"text-slate-300",
+				"text-slate-500",
+			);
 
 			if (Array.isArray(itemDef.effects) && itemDef.effects.length > 0 && itemDef.type !== "equipment") {
 				const useBtn = document.createElement("button");
@@ -289,6 +298,11 @@ const PlayerPanelRenderer = {
 				eqBtn.textContent = "Equip";
 				eqBtn.onclick = () => Engine.equipItem(index);
 				row.appendChild(eqBtn);
+			} else {
+				const passiveLabel = document.createElement("span");
+				passiveLabel.className = "text-[10px] text-slate-600 capitalize tracking-widest italic";
+				passiveLabel.textContent = itemDef.type || "passive";
+				row.appendChild(passiveLabel);
 			}
 
 			container.appendChild(row);

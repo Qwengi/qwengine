@@ -1,36 +1,86 @@
 {
-	"intro": {
-		"start": "legal",
-		"steps": {
-			"legal": {
-				"name": "Welcome to GameName",
-				"description": "This is a work of fiction blablabla no one is real and yadda yadda also might contain flashing images.",
-				"choices": {
-					"continue": {
-						"name": "I am aware and want to proceed",
-						"next": "name"
-					}
-				}
-			},
-			"name": {
-				"name": "Hello!",
-				"description": "Before going in, I need your starting name.",
-				"input": {
-					"id": "player_name",
-					"label": "Player name",
-					"placeholder": "Enter your name...",
-					"entity": "player",
-					"field": "name",
-					"required": true,
-					"minLength": 1,
-					"maxLength": 32
-				},
-				"proceed": {
-					"name": "Continue",
-					"msg": "Name confirmed.",
-					"teleport": "player_bedroom"
-				}
-			}
-		}
-	}
+  "intro": {
+    "start": "arrival",
+    "steps": {
+      "arrival": {
+        "name": "Approaching Brindlewood",
+        "dialogue": [
+          { "text": "The road narrows where the pines crowd in. You've been walking since the grey hours before dawn, and your boots have gone from damp to wet to something worse." },
+          { "text": "A sign leans at the tree line, half-swallowed by lichen. BRINDLEWOOD, it says, in letters someone carved with more confidence than skill." },
+          { "text": "Smoke rises beyond the treeline — steady, patient smoke, the kind that belongs to a hearth rather than a disaster. The village is close." },
+          { "text": "You step off the road and onto a worn track between the last of the trees. Ahead, lantern light bleeds through shuttered windows." }
+        ],
+        "choices": [
+          { "id": "enter", "text": "Enter the village", "next": "village_center" }
+        ]
+      },
+      "village_center": {
+        "name": "Brindlewood Square",
+        "dialogue": [
+          { "text": "The square is smaller than you expected. A well, a trough, a notice board with one notice and two empty rusted nails. The cobblestones shine from recent rain." },
+          { "text": "Most windows are dark. It's late, or early — you've stopped being certain which. A dog somewhere makes a single sound and then thinks better of it." },
+          { "text": "Across the square, a lantern hangs above a low door. Painted letters above it: THE MOSSY LANTERN. The light inside is amber and steady. Someone is still awake." }
+        ],
+        "choices": [
+          { "id": "enter_tavern", "text": "Enter The Mossy Lantern", "next": "tavern_entrance" }
+        ]
+      },
+      "tavern_entrance": {
+        "name": "The Mossy Lantern",
+        "dialogue": [
+          { "text": "Inside: low rafters hung with dried herbs, a fire down to coals, three tables and a bar worn smooth by decades of elbows. The warmth hits you like a hand on the chest." },
+          { "actor": "krelm", "action": "A broad man behind the bar looks up from a rag he's been using on a cup. He does not smile, but he doesn't frown either. He watches the door." },
+          { "actor": "krelm", "text": "Door stays open, fire goes out. Close it behind you." }
+        ],
+        "choices": [
+          { "id": "close_door", "text": "Close the door and approach the bar", "next": "meet_krelm" }
+        ]
+      },
+      "meet_krelm": {
+        "name": "The Mossy Lantern",
+        "dialogue": [
+          { "text": "He's older than he looks at first — or younger, it's hard to say. Thick arms, a face like weathered oak, a scar through one eyebrow from something that stopped being a story long ago." },
+          { "actor": "krelm", "text": "Haven't seen you before." },
+          { "actor": "krelm", "text": "Passing through, or looking to stay?" }
+        ],
+        "choices": [
+          { "id": "seek_work", "text": "I'm looking for work.", "next": "krelm_work_offer", "conditions": { "stamina": { "min": 5 } }, "hidden_when_locked": true },
+          { "id": "passing_through", "text": "Just passing through.", "next": "krelm_passing" }
+        ]
+      },
+      "krelm_work_offer": {
+        "name": "The Mossy Lantern",
+        "dialogue": [
+          { "actor": "krelm", "action": "He sets the cup down. Studies you for a moment with the particular attention of someone deciding whether to trust a new tool." },
+          { "actor": "krelm", "text": "Two things I always need. Someone to work the common room — serving, cleaning, keeping the peace if it comes to that. Or someone willing to go into the Eldergrove and bring back what grows there. Silverberries. Small, blue, bruise easy. Mira can show you where if you ask her." },
+          { "actor": "krelm", "text": "Pay's honest. Room's included. I don't carry debt and I don't forgive it either." },
+          { "actor": "krelm", "action": "He slides a worn iron key across the bar. The tag on it reads: 3." }
+        ],
+        "choices": [
+          { "id": "accept_work", "text": "I'll take it.", "next": "work_accepted" }
+        ]
+      },
+      "krelm_passing": {
+        "name": "The Mossy Lantern",
+        "dialogue": [
+          { "actor": "krelm", "action": "He nods slowly, the way a man nods when he's heard this before and knows how it usually ends." },
+          { "actor": "krelm", "text": "Most people who come through here are passing through. Most of them end up staying a season." },
+          { "actor": "krelm", "text": "Road north washes out this time of year. Could be worse places to wait it out." }
+        ],
+        "choices": [
+          { "id": "reconsider_work", "text": "Actually, I could use the work.", "next": "krelm_work_offer" },
+          { "id": "just_room", "text": "Just a room for tonight.", "next": "work_accepted" }
+        ]
+      },
+      "work_accepted": {
+        "name": "The Mossy Lantern",
+        "dialogue": [
+          { "text": "Room three is at the top of the stairs, second door. The lock sticks — you lift the handle when you turn the key." },
+          { "text": "The mattress is thin but dry. Someone has left a candle burned down to a stub on the windowsill, the wax pooled and hardened in a small frozen waterfall." },
+          { "text": "Through the warped glass, you can see the dark line of the Eldergrove. The trees don't move even in the wind. You pull the blanket to your chin and let the fire downstairs do its work." }
+        ],
+        "proceed": { "teleport": "mossy_lantern", "text": "Wake in the morning" }
+      }
+    }
+  }
 }

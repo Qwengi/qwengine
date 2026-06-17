@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Story Editor</title>
+    <link href="../output.css" rel="stylesheet">
+    <style>
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+    </style>
+</head>
+
+<body class="bg-slate-900 text-slate-200 h-screen flex flex-col font-sans overflow-hidden">
+
+    <!-- Top bar -->
+    <header class="bg-slate-800 border-b border-slate-700 px-4 py-2 flex items-center gap-4 shrink-0">
+        <h1 class="text-sm font-bold text-indigo-400 tracking-wide">Story Editor</h1>
+        <span id="editor-status" class="text-xs text-slate-500 italic"></span>
+    </header>
+
+    <!-- Main layout: nav | content | validation -->
+    <div class="flex flex-1 min-h-0">
+
+        <!-- Left nav -->
+        <nav id="editor-nav" class="w-44 shrink-0 bg-slate-950 border-r border-slate-800 flex flex-col overflow-y-auto">
+        </nav>
+
+        <!-- Center content -->
+        <div id="editor-content" class="flex-1 overflow-hidden flex flex-col bg-slate-900 min-w-0">
+        </div>
+
+        <!-- Right validation panel -->
+        <aside id="validation-panel" class="w-64 shrink-0 bg-slate-950 border-l border-slate-800 p-4 overflow-y-auto text-xs">
+            <h3 class="text-xs text-slate-500 uppercase tracking-widest font-bold mb-3 pb-2 border-b border-slate-800">Validation</h3>
+            <p class="text-slate-600 italic">Run a save to validate.</p>
+        </aside>
+
+    </div>
+
+    <!-- Shared engine layer -->
+    <script src="../engine/dataLoader.js"></script>
+    <script src="../engine/dataRegistry.js"></script>
+
+    <!-- Editor components -->
+    <script src="./components/ConditionEditor.js"></script>
+    <script src="./components/ChangesEditor.js"></script>
+    <script src="./components/DialogueEditor.js"></script>
+    <script src="./components/ConnectionEditor.js"></script>
+    <script src="./components/SVGGraph.js"></script>
+
+    <!-- Editor panels -->
+    <script src="./panels/PanelHelpers.js"></script>
+    <script src="./panels/ConfigPanel.js"></script>
+    <script src="./panels/ItemsPanel.js"></script>
+    <script src="./panels/StatsPanel.js"></script>
+    <script src="./panels/LocationsPanel.js"></script>
+    <script src="./panels/NpcsPanel.js"></script>
+    <script src="./panels/EventsPanel.js"></script>
+    <script src="./panels/ScenesPanel.js"></script>
+
+    <!-- Editor core -->
+    <script src="./editorState.js"></script>
+    <script src="./validation.js"></script>
+    <script src="./editor.js"></script>
+</body>
+
+</html>

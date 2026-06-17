@@ -45,7 +45,7 @@
  * Related files:
  * - src/engine/dataLoader.js wraps renderer-to-main IPC.
  * - main.js performs the actual filesystem save/load work.
- * - src/engine/systems/worldSystem.js resolves and repairs locations.
+ * - src/game/systems/worldSystem.js resolves and repairs locations.
  */
 const EngineSaveSystem = {
 	save: async function (slot) {

@@ -47,9 +47,9 @@
  *   mutating unrelated entity fields.
  *
  * Related files:
- * - src/engine/systems/eventSystem.js executes event changes.
- * - src/engine/systems/inventorySystem.js applies item effects and costs.
- * - src/ui/renderers/playerPanels.js displays effective stats and traits.
+ * - src/game/systems/eventSystem.js executes event changes.
+ * - src/game/systems/inventorySystem.js applies item effects and costs.
+ * - src/game/ui/renderers/playerPanels.js displays effective stats and traits.
  */
 const EngineEntitySystem = {
 	getEntity: function (id = "player") {
@@ -129,6 +129,23 @@ const EngineEntitySystem = {
 		return effects;
 	},
 
+	accumulateEffects: function (statId, entityId, target) {
+		let flat = 0;
+		let pct = 0;
+
+		this.getAllEffects(entityId).forEach((e) => {
+			if (e.stat !== statId) return;
+			const effectTarget = e.target || "value";
+			if (effectTarget !== target) return;
+			if (e.action === "add") flat += e.amount;
+			else if (e.action === "sub") flat -= e.amount;
+			else if (e.action === "add_pct") pct += e.amount;
+			else if (e.action === "sub_pct") pct -= e.amount;
+		});
+
+		return { flat, pct };
+	},
+
 	getEffectiveMax: function (statId, entityId = "player") {
 		const entity = this.getEntity(entityId);
 		if (!entity?.stats || !entity.stats[statId]) return undefined;
@@ -136,16 +153,8 @@ const EngineEntitySystem = {
 		const stat = entity.stats[statId];
 		if (stat.max === undefined) return undefined;
 
-		let max = stat.max;
-
-		this.getAllEffects(entityId).forEach((e) => {
-			if (e.stat === statId && e.target === "max") {
-				if (e.action === "add") max += e.amount;
-				if (e.action === "sub") max -= e.amount;
-			}
-		});
-
-		return max;
+		const { flat, pct } = this.accumulateEffects(statId, entityId, "max");
+		return (stat.max + flat) * (1 + pct / 100);
 	},
 
 	getEffectiveStat: function (statId, entityId = "player", silent = false) {
@@ -161,21 +170,13 @@ const EngineEntitySystem = {
 			return undefined;
 		}
 
-		let value = stat.value ?? 0;
-
-		this.getAllEffects(entityId).forEach((e) => {
-			if (e.stat === statId && (!e.target || e.target === "value")) {
-				if (e.action === "add") value += e.amount;
-				if (e.action === "sub") value -= e.amount;
-			}
-		});
+		const { flat, pct } = this.accumulateEffects(statId, entityId, "value");
+		let value = ((stat.value ?? 0) + flat) * (1 + pct / 100);
 
 		value = Math.max(0, value);
 
 		const max = this.getEffectiveMax(statId, entityId);
-		if (max !== undefined) {
-			value = Math.min(value, max);
-		}
+		if (max !== undefined) value = Math.min(value, max);
 
 		return value;
 	},
@@ -264,6 +265,13 @@ const EngineEntitySystem = {
 				return;
 			}
 
+			if (c.action === "remove_item") {
+				if (!c.item) return console.error("[Engine] 'remove_item' action is missing 'item' property.", c);
+				const idx = Array.isArray(entity.inventory) ? entity.inventory.findIndex((i) => i.id === c.item) : -1;
+				if (idx !== -1) entity.inventory.splice(idx, 1);
+				return;
+			}
+
 			if (c.action === "add_trait") {
 				if (!c.trait) return console.error("[Engine] 'add_trait' action is missing 'trait' property.", c);
 				this.addTrait(entityId, c.trait);
@@ -273,6 +281,31 @@ const EngineEntitySystem = {
 			if (c.action === "remove_trait") {
 				if (!c.trait) return console.error("[Engine] 'remove_trait' action is missing 'trait' property.", c);
 				this.removeTrait(entityId, c.trait);
+				return;
+			}
+
+			if (c.action === "add_progress") {
+				const stat = entity?.stats?.[c.stat];
+				if (!stat) {
+					console.warn(`[Engine] Stat '${c.stat}' not found for add_progress on '${entityId}'.`);
+					return;
+				}
+				if (stat.progress_max === undefined) {
+					console.warn(`[Engine] Stat '${c.stat}' has no progress_max; cannot use add_progress.`);
+					return;
+				}
+				const factor = Config?.stat_training_diminishing_returns ?? 0;
+				const threshold = stat.progress_max * (1 + factor * stat.value);
+
+				const { pct: efficiencyPct } = this.accumulateEffects(c.stat, entityId, "progress");
+
+				stat.progress = (stat.progress || 0) + c.amount * (1 + efficiencyPct / 100);
+				if (stat.progress >= threshold) {
+					stat.value += 1;
+					stat.progress -= threshold;
+					const label = c.stat.replace(/_/g, " ");
+					UI.log(`${label[0].toUpperCase()}${label.slice(1)} increased to ${stat.value}!`, true, "#a78bfa");
+				}
 				return;
 			}
 
@@ -299,21 +332,30 @@ const EngineEntitySystem = {
 		});
 	},
 
+	evaluateSingleCondition: function (statId, req) {
+		const entityId = req.entity || "player";
+		if (req.item) return this.hasItem(entityId, statId);
+		const val = this.getStatValue(statId, entityId, true);
+		if (val === undefined) return false;
+		if (req.min !== undefined && val < req.min) return false;
+		if (req.max !== undefined && val > req.max) return false;
+		if (req.eq !== undefined && val !== req.eq) return false;
+		return true;
+	},
+
 	checkConditions: function (conditions) {
 		if (!conditions || Object.keys(conditions).length === 0) return true;
+		return Object.entries(conditions).every(([statId, req]) => this.evaluateSingleCondition(statId, req));
+	},
 
-		for (const [statId, req] of Object.entries(conditions)) {
-			const entityId = req.entity || "player";
-			const val = this.getStatValue(statId, entityId, true);
+	checkConditionsAny: function (conditions) {
+		if (!conditions || Object.keys(conditions).length === 0) return true;
+		return Object.entries(conditions).some(([statId, req]) => this.evaluateSingleCondition(statId, req));
+	},
 
-			if (val === undefined) return false;
-
-			if (req.min !== undefined && val < req.min) return false;
-			if (req.max !== undefined && val > req.max) return false;
-			if (req.eq !== undefined && val !== req.eq) return false;
-		}
-
-		return true;
+	meetsConditions: function (source) {
+		return this.checkConditions(source?.conditions) &&
+			(!source?.conditions_any || this.checkConditionsAny(source.conditions_any));
 	},
 
 	calculateChance: function (chanceObj) {
@@ -329,7 +371,7 @@ const EngineEntitySystem = {
 		if (Array.isArray(chanceObj.modifiers)) {
 			chanceObj.modifiers.forEach((mod) => {
 				const entityId = mod.entity || "player";
-				const val = this.getStatValue(mod.stat, entityId, true) || 0;
+				const val = (this.getStatValue(mod.stat, entityId, true) || 0) * (mod.scale ?? 1);
 				if (mod.op === "add") prob += val;
 				else if (mod.op === "sub") prob -= val;
 			});

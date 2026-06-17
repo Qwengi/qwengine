@@ -40,10 +40,10 @@
  * - Teleporting must avoid an extra rerender before moveTo handles rendering.
  *
  * Related files:
- * - src/engine/systems/inputSystem.js validates typed event input.
- * - src/engine/systems/entitySystem.js applies event changes.
- * - src/engine/systems/worldSystem.js handles event teleports.
- * - src/ui/renderers/worldView.js calls triggerEvent from action buttons.
+ * - src/game/systems/inputSystem.js validates typed event input.
+ * - src/game/systems/entitySystem.js applies event changes.
+ * - src/game/systems/worldSystem.js handles event teleports.
+ * - src/game/ui/renderers/worldView.js calls triggerEvent from action buttons.
  */
 const EngineEventSystem = {
 	triggerEvent: function (eventId, payload = {}, depth = 0) {
@@ -63,7 +63,9 @@ const EngineEventSystem = {
 			return;
 		}
 
-		if (!this.checkConditions(ev.conditions)) return;
+		if (!this.meetsConditions(ev)) return;
+
+		if (ev.once && this.state.usedEvents?.[eventId]) return;
 
 		const inputValidation = this.validateEventInputs(ev, payload);
 		if (!inputValidation.valid) {
@@ -93,11 +95,36 @@ const EngineEventSystem = {
 		this.applyEventInputs(ev, payload, inputValidation);
 		this.applyChanges(changes);
 
+		if (ev.once) {
+			if (!this.state.usedEvents) this.state.usedEvents = {};
+			this.state.usedEvents[eventId] = true;
+		}
+
 		if (ev.msg) UI.log(ev.msg, true);
 
-		if ((this.getStatValue("hp", "player", true) ?? Number.MAX_SAFE_INTEGER) <= 0) {
-			UI.log("You have died! Resetting...", true, "#ef4444");
-			this.resetState();
+		if (ev.bonus && this.calculateChance(ev.bonus.chance)) {
+			const bonusChanges = Array.isArray(ev.bonus.changes) ? ev.bonus.changes : [];
+			this.applyChanges(bonusChanges);
+			if (ev.bonus.msg) UI.log(ev.bonus.msg, false, "#fbbf24");
+		}
+
+		const criticalStats = Config?.critical_stats;
+		if (Array.isArray(criticalStats) && criticalStats.length > 0) {
+			const isDead = criticalStats.some(
+				(statId) => (this.getStatValue(statId, "player", true) ?? Number.MAX_SAFE_INTEGER) <= 0,
+			);
+			if (isDead) {
+				const onDeath = Config?.on_death;
+				if (onDeath && this.data.events[onDeath]) {
+					this.triggerEvent(onDeath, {}, depth + 1);
+				} else if (onDeath && this.data.scenes[onDeath]?.start_location) {
+					this.moveTo(this.data.scenes[onDeath].start_location);
+				} else {
+					if (onDeath) console.warn(`[Engine] on_death target '${onDeath}' not found as event or scene. Using default reset.`);
+					UI.log("You have died! Resetting...", true, "#ef4444");
+					this.resetState();
+				}
+			}
 		}
 
 		if (ev.teleport) this.moveTo(ev.teleport);

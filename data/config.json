@@ -1,0 +1,9 @@
+{
+  "starting_scene": "intro",
+  "starting_location": "mossy_lantern",
+  "enable_images": true,
+  "critical_stats": [],
+  "on_death": null,
+  "stat_training_diminishing_returns": 0.5,
+  "font_scale": 1.0
+}

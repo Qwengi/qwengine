@@ -43,8 +43,8 @@
  *
  * Related files:
  * - main.js produces rawData.
- * - src/engine/engine.js stores the compiled result as Engine.data.
- * - src/engine/systems/worldSystem.js and saveSystem.js depend on scene ids.
+ * - src/game/engine.js stores the compiled result as Engine.data.
+ * - src/game/systems/worldSystem.js and saveSystem.js depend on scene ids.
  */
 const DataRegistry = {
 	isPlainObject(obj) {
@@ -112,13 +112,26 @@ const DataRegistry = {
 		if (!step || typeof step !== "object") return {};
 
 		const choices = {};
-		if (this.isPlainObject(step.actions)) this.deepMerge(choices, step.actions);
-		if (this.isPlainObject(step.choices)) this.deepMerge(choices, step.choices);
+
+		const mergeSource = (src) => {
+			if (Array.isArray(src)) {
+				src.forEach((entry) => {
+					if (!entry || !entry.id) return;
+					const { id, ...rest } = entry;
+					choices[id] = rest;
+				});
+			} else if (this.isPlainObject(src)) {
+				this.deepMerge(choices, src);
+			}
+		};
+
+		mergeSource(step.actions);
+		mergeSource(step.choices);
 
 		if (Object.keys(choices).length === 0 && (step.next || step.teleport || step.input || step.inputs || step.proceed)) {
 			const proceed = this.isPlainObject(step.proceed) ? structuredClone(step.proceed) : {};
 
-			proceed.name = proceed.name || step.proceed_name || step.proceedName || "Proceed";
+			proceed.name = proceed.text || proceed.name || step.proceed_name || step.proceedName || "Proceed";
 			if (step.next && proceed.next === undefined) proceed.next = step.next;
 			if (step.teleport && proceed.teleport === undefined) proceed.teleport = step.teleport;
 
@@ -159,6 +172,7 @@ const DataRegistry = {
 				delete location.proceed;
 				delete location.proceed_name;
 				delete location.proceedName;
+				// dialogue, description, and image are preserved on the compiled location
 
 				location.scene = { id: sceneId, step: stepId };
 				location.events = Array.isArray(location.events) ? location.events : [];
@@ -171,7 +185,8 @@ const DataRegistry = {
 
 					delete eventData.next;
 
-					eventData.name = eventData.name || choiceId;
+					eventData.name = eventData.text || eventData.name || choiceId;
+					delete eventData.text;
 					eventData.locations = [locationId];
 					eventData.scene = { id: sceneId, step: stepId, choice: choiceId };
 
@@ -196,6 +211,13 @@ const DataRegistry = {
 		}
 	},
 
+	normalizeConnections(compiled) {
+		for (const loc of Object.values(compiled.locations)) {
+			if (!Array.isArray(loc.connections)) continue;
+			loc.connections = loc.connections.map((c) => (typeof c === "string" ? { id: c } : c));
+		}
+	},
+
 	compile(rawData) {
 		if (!rawData?.base) {
 			throw new Error("[Registry] Invalid rawData: missing base");
@@ -213,7 +235,7 @@ const DataRegistry = {
 
 		(rawData.mods || []).forEach((mod, index) => {
 			const id = mod?.meta?.id || `mod_${index}`;
-			console.log(`[Registry] Applying Mod: ${id}`);
+			console.debug(`[Registry] Applying Mod: ${id}`);
 
 			if (mod.entities) this.deepMerge(compiled.entities, mod.entities);
 			if (mod.locations) this.deepMerge(compiled.locations, mod.locations);
@@ -225,6 +247,7 @@ const DataRegistry = {
 		});
 
 		this.compileScenes(compiled);
+		this.normalizeConnections(compiled);
 
 		["events", "npcs"].forEach((type) => {
 			const registryPart = compiled[type] || {};

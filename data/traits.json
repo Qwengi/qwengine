@@ -1,17 +1,1 @@
-{
-	"traits": {
-		"scholar": {
-			"name": "Scholar",
-			"type": "trait",
-			"slot": "trait",
-			"effects": [
-				{
-					"stat": "Intelligence",
-					"action": "add",
-					"amount": 7
-				}
-			],
-			"image": "./path/to/image.png"
-		}
-	}
-}
+{}

@@ -14,7 +14,7 @@
  *
  * Interactions:
  * - Calls window.api methods exposed by preload.js.
- * - Used by src/engine/engine.js and src/engine/systems/saveSystem.js.
+ * - Used by src/game/engine.js and src/game/systems/saveSystem.js.
  *
  * What does not belong here:
  * - Filesystem paths, JSON parsing, raw data shape normalization, registry

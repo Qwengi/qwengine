@@ -1,6 +1,35 @@
 {
-	"player_bedroom": {
-		"name": "Your Bedroom",
-		"description": "A cozy, quiet room."
-	}
+  "mossy_lantern": {
+    "name": "The Mossy Lantern",
+    "description": "Low rafters, a fire that's been burning for twenty years, and a barkeep who doesn't ask where you've been. The common room smells of pine resin and old ale.",
+    "connections": ["brindlewood_square", "room_three"]
+  },
+  "brindlewood_square": {
+    "name": "Brindlewood",
+    "description": "The village square is cobblestone and mud in equal measure. A well sits at the center, its rope frayed. Houses ring the edge like quiet watchers.",
+    "connections": ["mossy_lantern", "eldergrove_edge"]
+  },
+  "eldergrove_edge": {
+    "name": "Edge of the Eldergrove",
+    "description": "The trees here are older than the village name. The canopy closes fast. You can hear something moving just past where the light reaches.",
+    "connections": [
+      "brindlewood_square",
+      {
+        "id": "eldergrove_deep",
+        "label": "Into the deep grove",
+        "conditions": { "boulder_moved": { "entity": "world", "min": 1 } },
+        "hidden_when_locked": true
+      }
+    ]
+  },
+  "room_three": {
+    "name": "Room Three",
+    "description": "A small room above the common room. Straw mattress, a window facing the Eldergrove, enough floor space to work with. The floorboards creak but they hold.",
+    "connections": ["mossy_lantern"]
+  },
+  "eldergrove_deep": {
+    "name": "The Deep Eldergrove",
+    "description": "The canopy closes completely here. The light that reaches the ground is green and old. The undergrowth is thicker, stranger. Silverberries deeper in are larger, their color almost luminous.",
+    "connections": ["eldergrove_edge"]
+  }
 }

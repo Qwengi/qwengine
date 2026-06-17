@@ -1,59 +1,13 @@
-/**
- * Electron main-process entry point and trusted filesystem bridge.
- *
- * Purpose:
- * This file runs outside the renderer sandbox and owns window creation plus the
- * IPC handlers that read game data, read mods, and persist saves. It is the
- * only project-owned JavaScript file that should directly access Node fs/path
- * APIs for core game data at runtime.
- *
- * Responsibilities:
- * - Create the BrowserWindow and load src/index.html.
- * - Ensure base data, mods, and saves directories exist.
- * - Read JSON content from data/ and mods/ folders.
- * - Resolve relative image paths in locations and scenes into file URLs.
- * - Shape raw base/mod data for DataRegistry.compile in the renderer.
- * - Save, load, and list save slots through IPC.
- *
- * Interactions:
- * - Exposes handlers consumed by preload.js/DataLoader in the renderer.
- * - Reads data/*.json and mods/<mod>/*.json.
- * - Writes saves/<slot>.json.
- * - Does not call Engine or UI directly; renderer code handles gameplay.
- *
- * What does not belong here:
- * - Runtime game rules, event execution, stat logic, UI rendering, editor UI,
- *   save-state interpretation, or mod conflict resolution.
- *
- * Architectural assumptions and constraints:
- * - Renderer context isolation is enabled; all trusted filesystem access should
- *   pass through narrow IPC handlers.
- * - Mods are loaded by folder name sort order for now.
- * - DataRegistry owns deep merge and scene compilation; this file only reads and
- *   lightly normalizes raw JSON/assets.
- *
- * Important APIs:
- * - IPC handler "load-raw-data"
- * - IPC handler "save-game"
- * - IPC handler "load-game"
- * - IPC handler "list-saves"
- *
- * Common risks:
- * - Expanding IPC with broad filesystem paths would weaken the sandbox.
- * - Changing rawData shape must be coordinated with DataRegistry.compile.
- * - Asset path normalization should stay data-folder-relative to support mods.
- *
- * Related files:
- * - preload.js exposes these IPC handlers safely to the renderer.
- * - src/engine/dataLoader.js wraps the renderer API calls.
- * - src/engine/dataRegistry.js compiles the raw data returned here.
- */
-const { app, BrowserWindow, ipcMain } = require("electron");
+const { app, BrowserWindow, ipcMain, Menu } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const { pathToFileURL } = require("url");
 
-function createWindow() {
+const isEditor = process.argv.includes("--editor");
+
+const ALLOWED_DATA_FILES = new Set(["events", "locations", "scenes", "npcs", "items", "traits", "stats", "config"]);
+
+function createGameWindow() {
 	const mainWindow = new BrowserWindow({
 		width: 1200,
 		height: 850,
@@ -61,10 +15,26 @@ function createWindow() {
 			preload: path.join(__dirname, "preload.js"),
 			contextIsolation: true,
 			nodeIntegration: false,
+			sandbox: false,
 		},
 	});
 
-	mainWindow.loadFile(path.join(__dirname, "src", "index.html"));
+	mainWindow.loadFile(path.join(__dirname, "src", "game", "index.html"));
+}
+
+function createEditorWindow() {
+	const editorWindow = new BrowserWindow({
+		width: 1400,
+		height: 900,
+		webPreferences: {
+			preload: path.join(__dirname, "preload.js"),
+			contextIsolation: true,
+			nodeIntegration: false,
+			sandbox: false,
+		},
+	});
+
+	editorWindow.loadFile(path.join(__dirname, "src", "editor", "index.html"));
 }
 
 const readJson = (filePath) => {
@@ -74,7 +44,7 @@ const readJson = (filePath) => {
 		const content = fs.readFileSync(filePath, "utf-8");
 		return JSON.parse(content);
 	} catch (error) {
-		console.error(`圷 JSON PARSE ERROR: ${filePath}\n`, error.message);
+		console.error(`[Main] JSON parse error: ${filePath}\n`, error.message);
 		return null;
 	}
 };
@@ -112,6 +82,14 @@ const processScenes = (scenes, baseDir) => {
 		for (const [stepId, stepData] of Object.entries(scene.steps || {})) {
 			const step = { ...stepData };
 			step.image = resolveDataAsset(step.image, baseDir);
+
+			if (Array.isArray(step.dialogue)) {
+				step.dialogue = step.dialogue.map((beat) => {
+					if (beat.image) return { ...beat, image: resolveDataAsset(beat.image, baseDir) };
+					return beat;
+				});
+			}
+
 			steps[stepId] = step;
 		}
 
@@ -123,31 +101,32 @@ const processScenes = (scenes, baseDir) => {
 };
 
 app.whenReady().then(() => {
-	createWindow();
+	isEditor ? createEditorWindow() : createGameWindow();
 
-	const dataDir = path.join(__dirname, "data");
-	const modsDir = path.join(__dirname, "mods");
-	const savesDir = path.join(__dirname, "saves");
+	// Game data lives inside the package (ASAR-safe read via electron's patched fs).
+	const dataDir = path.join(app.getAppPath(), "data");
 
-	[dataDir, modsDir, savesDir].forEach((dir) => {
+	// Saves and mods live in user data — writable, persists across updates.
+	const userDataDir = app.getPath("userData");
+	const modsDir = path.join(userDataDir, "mods");
+	const savesDir = path.join(userDataDir, "saves");
+
+	[modsDir, savesDir].forEach((dir) => {
 		if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 	});
 
 	ipcMain.handle("load-raw-data", async () => {
 		try {
-			// Extract items and traits directly from their root wrapper
-			const baseItemsRaw = readJson(path.join(dataDir, "items.json")) || {};
-			const baseTraitsRaw = readJson(path.join(dataDir, "traits.json")) || {};
-
 			const rawData = {
+				storyConfig: readJson(path.join(dataDir, "config.json")) || {},
 				base: {
 					entities: readJson(path.join(dataDir, "stats.json"))?.entities || {},
 					locations: processLocations(readJson(path.join(dataDir, "locations.json")) || {}, dataDir),
 					npcs: readJson(path.join(dataDir, "npcs.json")) || {},
 					events: readJson(path.join(dataDir, "events.json")) || {},
 					scenes: processScenes(readJson(path.join(dataDir, "scenes.json")) || {}, dataDir),
-					items: baseItemsRaw.items || {},
-					traits: baseTraitsRaw.traits || {},
+					items: readJson(path.join(dataDir, "items.json")) || {},
+					traits: readJson(path.join(dataDir, "traits.json")) || {},
 				},
 				mods: [],
 			};
@@ -155,10 +134,7 @@ app.whenReady().then(() => {
 			if (fs.existsSync(modsDir)) {
 				const modFolders = fs
 					.readdirSync(modsDir)
-					.filter((name) => {
-						const fullPath = path.join(modsDir, name);
-						return fs.statSync(fullPath).isDirectory();
-					})
+					.filter((name) => fs.statSync(path.join(modsDir, name)).isDirectory())
 					.sort();
 
 				modFolders.forEach((folder) => {
@@ -168,21 +144,16 @@ app.whenReady().then(() => {
 						const meta = readJson(path.join(modDir, "mod.json"));
 						if (!meta) throw new Error("Missing mod.json");
 
-						const modItemsRaw = readJson(path.join(modDir, "items.json")) || {};
-						const modTraitsRaw = readJson(path.join(modDir, "traits.json")) || {};
-
-						const modData = {
+						rawData.mods.push({
 							meta,
 							entities: readJson(path.join(modDir, "stats.json"))?.entities || {},
 							locations: processLocations(readJson(path.join(modDir, "locations.json")) || {}, modDir),
 							npcs: readJson(path.join(modDir, "npcs.json")) || {},
 							events: readJson(path.join(modDir, "events.json")) || {},
 							scenes: processScenes(readJson(path.join(modDir, "scenes.json")) || {}, modDir),
-							items: modItemsRaw.items || {},
-							traits: modTraitsRaw.traits || {},
-						};
-
-						rawData.mods.push(modData);
+							items: readJson(path.join(modDir, "items.json")) || {},
+							traits: readJson(path.join(modDir, "traits.json")) || {},
+						});
 					} catch (err) {
 						console.error(`[Main] Failed to load mod '${folder}':`, err.message);
 					}
@@ -196,11 +167,23 @@ app.whenReady().then(() => {
 		}
 	});
 
+	ipcMain.handle("write-data-file", async (event, filename, content) => {
+		try {
+			const name = path.basename(filename, ".json");
+			if (!ALLOWED_DATA_FILES.has(name)) throw new Error(`Disallowed file: ${filename}`);
+
+			const filePath = path.join(dataDir, `${name}.json`);
+			fs.writeFileSync(filePath, JSON.stringify(content, null, 2));
+			return true;
+		} catch (err) {
+			console.error("[Main] write-data-file failed:", err);
+			throw new Error("Failed to write data file.");
+		}
+	});
+
 	ipcMain.handle("save-game", async (event, gameState, slotName) => {
 		try {
-			if (!gameState || typeof gameState !== "object") {
-				throw new Error("Invalid game state");
-			}
+			if (!gameState || typeof gameState !== "object") throw new Error("Invalid game state");
 
 			const safeSlot = path.basename(slotName || "save1");
 			const savePath = path.join(savesDir, `${safeSlot}.json`);
@@ -216,9 +199,7 @@ app.whenReady().then(() => {
 	ipcMain.handle("load-game", async (event, slotName) => {
 		try {
 			const safeSlot = path.basename(slotName || "save1");
-			const savePath = path.join(savesDir, `${safeSlot}.json`);
-
-			return readJson(savePath);
+			return readJson(path.join(savesDir, `${safeSlot}.json`));
 		} catch (err) {
 			console.error("[Main] Load failed:", err);
 			throw new Error("Failed to load save.");
@@ -229,21 +210,13 @@ app.whenReady().then(() => {
 		try {
 			if (!fs.existsSync(savesDir)) return [];
 
-			const files = fs.readdirSync(savesDir);
-			const saves = [];
-
-			for (const file of files) {
-				if (file.endsWith(".json")) {
-					const slotName = path.basename(file, ".json");
-					const stats = fs.statSync(path.join(savesDir, file));
-					saves.push({
-						slot: slotName,
-						date: stats.mtimeMs,
-					});
-				}
-			}
-
-			return saves;
+			return fs
+				.readdirSync(savesDir)
+				.filter((f) => f.endsWith(".json"))
+				.map((f) => ({
+					slot: path.basename(f, ".json"),
+					date: fs.statSync(path.join(savesDir, f)).mtimeMs,
+				}));
 		} catch (err) {
 			console.error("[Main] List saves failed:", err);
 			return [];
@@ -253,4 +226,10 @@ app.whenReady().then(() => {
 
 app.on("window-all-closed", () => {
 	if (process.platform !== "darwin") app.quit();
+});
+
+app.on("activate", () => {
+	if (BrowserWindow.getAllWindows().length === 0) {
+		isEditor ? createEditorWindow() : createGameWindow();
+	}
 });

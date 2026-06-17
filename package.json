@@ -1,15 +1,41 @@
 {
-	"name": "sandbox-sim",
+	"name": "qwengine",
 	"version": "1.0.0",
-	"description": "Data-Driven Sandbox PoC",
+	"description": "A data-driven narrative game engine with a built-in story editor",
 	"main": "main.js",
 	"scripts": {
-		"start": "electron .",
+		"start": "npm run build:css && electron .",
+		"edit": "npm run build:css && electron . --editor",
 		"build:css": "tailwindcss -i ./src/input.css -o ./src/output.css",
-		"watch:css": "tailwindcss -i ./src/input.css -o ./src/output.css --watch"
+		"watch:css": "tailwindcss -i ./src/input.css -o ./src/output.css --watch",
+		"dist": "npm run build:css && electron-builder"
 	},
 	"devDependencies": {
 		"electron": "^28.3.3",
+		"electron-builder": "^24.9.1",
 		"tailwindcss": "^3.4.19"
+	},
+	"build": {
+		"appId": "com.qwengine.app",
+		"productName": "QwEngine",
+		"files": [
+			"src/**/*",
+			"data/**/*",
+			"main.js",
+			"preload.js",
+			"package.json"
+		],
+		"extraResources": [
+			{
+				"from": "static",
+				"to": "static"
+			}
+		],
+		"mac": {
+			"category": "public.app-category.games"
+		},
+		"win": {
+			"target": "nsis"
+		}
 	}
 }

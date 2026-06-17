@@ -1,27 +1,23 @@
 {
-	"entities": {
-		"player": {
-			"name": "",
-			"stats": {
-				"Happiness": { "value": 100, "max": 100, "type": "resource" },
-				"Energy": { "value": 100, "max": 100, "type": "resource" },
-				"Stress": { "value": 0, "max": 100, "type": "resource" },
-				"Willpower": { "value": 0, "max": 100, "type": "resource" },
-
-				"Money": { "value": 0, "type": "currency" },
-
-				"Intelligence": { "value": 10, "type": "attribute", "group": "mind" },
-				"Fitness": { "value": 10, "type": "attribute", "group": "body" },
-				"Charm": { "value": 10, "type": "attribute", "group": "behavior" },
-				"Appearance": { "value": 10, "type": "attribute", "group": "allure" }
-			},
-			"inventory": {
-				"items": [{ "id": "sandwich", "quantity": 2 }, { "id": "shirt" }]
-			},
-			"worn": {
-				"chest": null
-			},
-			"traits": []
-		}
-	}
+  "entities": {
+    "player": {
+      "name": "Traveler",
+      "stats": {
+        "stamina": { "value": 100, "max": 100, "type": "resource", "group": "Vitals" },
+        "coin": { "value": 3, "type": "currency" },
+        "berries": { "value": 0, "type": "attribute", "group": "Resources" },
+        "tavern_rep": { "value": 0, "type": "attribute", "group": "Reputation" },
+        "strength": { "value": 0, "progress": 0, "progress_max": 100, "type": "attribute", "group": "Skills" },
+        "charisma": { "value": 0, "progress": 0, "progress_max": 100, "type": "attribute", "group": "Skills" }
+      },
+      "traits": [],
+      "inventory": [],
+      "worn": {}
+    },
+    "world": {
+      "stats": {
+        "boulder_moved": { "value": 0, "type": "attribute" }
+      }
+    }
+  }
 }

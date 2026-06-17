@@ -47,24 +47,26 @@
  * - Stackable and non-stackable items use different inventory instance shapes.
  *
  * Related files:
- * - src/engine/systems/entitySystem.js applies costs and item effects.
- * - src/ui/renderers/playerPanels.js renders inventory/equipment controls.
- * - src/ui/renderers/shopRenderer.js renders shop purchase controls.
+ * - src/game/systems/entitySystem.js applies costs and item effects.
+ * - src/game/ui/renderers/playerPanels.js renders inventory/equipment controls.
+ * - src/game/ui/renderers/shopRenderer.js renders shop purchase controls.
  */
 const EngineInventorySystem = {
 	hasItem: function (entityId, itemId) {
 		const entity = this.getEntity(entityId);
 		if (!entity) return false;
 
-		const inInventory = entity.inventory?.items?.some((i) => i.id === itemId) || false;
+		const inInventory = Array.isArray(entity.inventory) && entity.inventory.some((i) => i.id === itemId);
 		const equipped = entity.worn ? Object.values(entity.worn).some((inst) => inst && inst.id === itemId) : false;
 
 		return inInventory || equipped;
 	},
 
-	canShowShopItem: function (itemId) {
+	canShowShopItem: function (itemId, shopItem = null) {
 		const itemDef = this.data.items[itemId];
 		if (!itemDef) return false;
+
+		if (shopItem && !this.meetsConditions(shopItem)) return false;
 
 		if (itemDef.stackable) return true;
 
@@ -78,7 +80,15 @@ const EngineInventorySystem = {
 			return;
 		}
 
-		UI.log(`${npc.name}: "${npc.dialogue}"`, false, npc.color || "#67e8f9");
+		let line = "";
+		if (typeof npc.dialogue === "string") {
+			line = npc.dialogue;
+		} else if (Array.isArray(npc.dialogue)) {
+			const match = npc.dialogue.find((d) => this.meetsConditions(d));
+			line = match?.text || "";
+		}
+
+		if (line) UI.log(`${npc.name}: "${line}"`, false, npc.color || "#67e8f9");
 
 		if (npc.shop && npc.shop.inventory) {
 			this.state.activeShop = npcId;
@@ -107,33 +117,44 @@ const EngineInventorySystem = {
 		}
 	},
 
+	stackItem: function (entity, itemId, amount) {
+		if (!entity.inventory) entity.inventory = [];
+		const existing = entity.inventory.find((i) => i.id === itemId);
+		if (existing) {
+			existing.quantity = (existing.quantity || 1) + amount;
+		} else {
+			entity.inventory.push({ id: itemId, quantity: amount });
+		}
+	},
+
 	addItem: function (entityId, itemId, amount = 1) {
 		const entity = this.getEntity(entityId);
-		if (!entity.inventory) entity.inventory = { items: [] };
+		if (!entity.inventory) entity.inventory = [];
 
 		const itemDef = this.data.items[itemId];
 		if (!itemDef) return;
 
 		if (itemDef.stackable) {
-			const existing = entity.inventory.items.find((i) => i.id === itemId);
-			if (existing) {
-				existing.quantity = (existing.quantity || 1) + amount;
-			} else {
-				entity.inventory.items.push({ id: itemId, quantity: amount });
-			}
+			this.stackItem(entity, itemId, amount);
 		} else {
 			for (let i = 0; i < amount; i++) {
-				entity.inventory.items.push({ id: itemId });
+				entity.inventory.push({ id: itemId });
 			}
 		}
 	},
 
 	useItem: function (itemId, itemIndex) {
 		const entity = this.getEntity("player");
-		if (!entity.inventory || !entity.inventory.items[itemIndex]) return;
+		if (!Array.isArray(entity.inventory) || !entity.inventory[itemIndex]) return;
 
-		const itemInst = entity.inventory.items[itemIndex];
+		const itemInst = entity.inventory[itemIndex];
 		const itemDef = this.data.items[itemInst.id];
+		if (!itemDef) return;
+
+		if (!this.canApplyChanges(itemDef.effects)) {
+			UI.log(`Cannot use ${itemDef.name}.`, false, "#ef4444");
+			return;
+		}
 
 		this.applyChanges(itemDef.effects);
 
@@ -142,7 +163,7 @@ const EngineInventorySystem = {
 		if (itemInst.quantity && itemInst.quantity > 1) {
 			itemInst.quantity -= 1;
 		} else {
-			entity.inventory.items.splice(itemIndex, 1);
+			entity.inventory.splice(itemIndex, 1);
 		}
 
 		UI.renderView(this.data, this.state);
@@ -150,10 +171,11 @@ const EngineInventorySystem = {
 
 	equipItem: function (itemIndex) {
 		const entity = this.getEntity("player");
-		if (!entity.inventory || !entity.inventory.items[itemIndex]) return;
+		if (!Array.isArray(entity.inventory) || !entity.inventory[itemIndex]) return;
 
-		const itemInst = entity.inventory.items[itemIndex];
+		const itemInst = entity.inventory[itemIndex];
 		const itemDef = this.data.items[itemInst.id];
+		if (!itemDef) return;
 
 		if (itemDef.type !== "equipment" || !itemDef.slot) {
 			UI.log(`Cannot equip ${itemDef.name} - missing slot info.`, false, "#ef4444");
@@ -173,7 +195,7 @@ const EngineInventorySystem = {
 		if (itemInst.quantity && itemInst.quantity > 1) {
 			itemInst.quantity -= 1;
 		} else {
-			entity.inventory.items.splice(itemIndex, 1);
+			entity.inventory.splice(itemIndex, 1);
 		}
 
 		UI.log(`Equipped ${itemDef.name}.`, true, "#818cf8");
@@ -189,17 +211,12 @@ const EngineInventorySystem = {
 
 		delete entity.worn[slot];
 
-		if (!entity.inventory) entity.inventory = { items: [] };
+		if (!entity.inventory) entity.inventory = [];
 
 		if (itemDef && itemDef.stackable) {
-			const existing = entity.inventory.items.find((i) => i.id === itemInst.id);
-			if (existing) {
-				existing.quantity = (existing.quantity || 1) + 1;
-			} else {
-				entity.inventory.items.push({ id: itemInst.id, quantity: 1 });
-			}
+			this.stackItem(entity, itemInst.id, 1);
 		} else {
-			entity.inventory.items.push(itemInst);
+			entity.inventory.push(itemInst);
 		}
 
 		if (entity.stats) {

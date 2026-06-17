@@ -1,42 +1,74 @@
-my-sandbox-sim/
+qwengine/
 │
 ├── package.json                # Electron app configuration
-├── main.js                     # Electron main process (reads files, handles IPC)
-├── preload.js                  # Safe bridge for Context Isolation (CRITICAL)
+├── main.js                     # Electron main process (reads files, handles IPC, routes game/editor windows)
+├── preload.js                  # Safe bridge for Context Isolation (loadRawData, writeDataFile, saveGame, loadGame, listSaves)
 │
-├── src/                        # ENGINE CODE (Logic only, no content)
-│   ├── index.html              # Main UI layout
-│   ├── engine/                 # GAME LOGIC (pure systems)
-│   │   ├── engine.js           # Runtime composition root and boot coordinator
-│   │   ├── dataRegistry.js     # Compile + merge system
-│   │   ├── dataLoader.js       # IPC wrapper for loading data
-│   │   └── systems/            # Focused runtime systems mixed into Engine
-│   │       ├── worldSystem.js
-│   │       ├── entitySystem.js
-│   │       ├── inputSystem.js
-│   │       ├── inventorySystem.js
-│   │       ├── eventSystem.js
-│   │       └── saveSystem.js
+├── src/                        # ALL RENDERER CODE
 │   │
-│   ├── config.js               # Global flags
-│   └── ui                      # UI elements and components folder
-│       ├── components          # Reusable UI pieces
-│       ├── renderers           # Focused DOM renderers behind the UI facade
-│       └── ui.js               # DOM manipulation and rendering
+│   ├── input.css               # Tailwind source
+│   ├── output.css              # Tailwind compiled output (referenced by both windows)
+│   │
+│   ├── engine/                 # SHARED — loaded by both game and editor windows
+│   │   ├── dataLoader.js       # IPC wrapper (loadRaw, saveGame, loadGame, listSaves)
+│   │   └── dataRegistry.js     # Compile + mod-merge layer; produces runtime registry from rawData
+│   │
+│   ├── game/                   # GAME WINDOW (npm start)
+│   │   ├── index.html          # Game window entry point
+│   │   ├── config.js           # Runtime Config object; merged with data/config.json at boot
+│   │   ├── engine.js           # Composition root; boots engine, mixes in all systems
+│   │   ├── systems/            # Focused runtime systems mixed into Engine
+│   │   │   ├── worldSystem.js      # Location state, movement, resetState
+│   │   │   ├── entitySystem.js     # Stat math, traits, effects, conditions, chance
+│   │   │   ├── inputSystem.js      # Event input validation and application
+│   │   │   ├── inventorySystem.js  # Items, equipment, shops, NPC talk
+│   │   │   ├── eventSystem.js      # Event execution orchestration
+│   │   │   └── saveSystem.js       # Save/load persistence and entity reconciliation
+│   │   └── ui/
+│   │       ├── ui.js               # Rendering facade
+│   │       ├── renderers/
+│   │       │   ├── worldView.js        # Location surface, dialogue, actions, travel
+│   │       │   ├── playerPanels.js     # Stats, traits, equipment, inventory panels
+│   │       │   └── shopRenderer.js     # Shop section UI
+│   │       └── components/
+│   │           └── left-sidebar/
+│   │               └── LeftSidebar.js  # Collapsible tabbed sidebar web component
+│   │
+│   └── editor/                 # EDITOR WINDOW (npm run edit)
+│       ├── index.html          # Editor window entry point
+│       ├── editor.js           # Boot coordinator, nav wiring
+│       ├── editorState.js      # rawData store, dirty tracking, save per file
+│       ├── validation.js       # Wraps DataRegistry.compile() → warning list
+│       ├── panels/             # One panel per data file type
+│       │   ├── PanelHelpers.js     # Shared DOM helpers (list-detail layout, field rows, etc.)
+│       │   ├── ConfigPanel.js      # data/config.json editor
+│       │   ├── EventsPanel.js      # data/events.json editor
+│       │   ├── LocationsPanel.js   # data/locations.json editor
+│       │   ├── NpcsPanel.js        # data/npcs.json editor
+│       │   ├── ItemsPanel.js       # data/items.json editor
+│       │   ├── StatsPanel.js       # data/stats.json editor (entity → stat tree)
+│       │   └── ScenesPanel.js      # data/scenes.json editor (SVG node graph + step form)
+│       └── components/         # Reusable editor form components
+│           ├── ConditionEditor.js  # conditions / conditions_any row builder
+│           ├── ChangesEditor.js    # changes array row builder
+│           ├── DialogueEditor.js   # Dialogue beat array editor with reorder
+│           ├── ConnectionEditor.js # Location connection list with optional metadata
+│           └── SVGGraph.js         # Custom SVG node graph renderer (pan, zoom, BFS layout)
 │
-├── data/                       # BASE GAME CONTENT (Data only)
-│   ├── stats.json
-│   ├── locations.json
-│   ├── scenes.json
-│   ├── npcs.json
-│   └── events.json
+├── data/                       # BASE GAME CONTENT (JSON only, no logic)
+│   ├── config.json             # Starting scene/location, death handler, font scale, etc.
+│   ├── stats.json              # Entity definitions (player stats, world flags)
+│   ├── locations.json          # World locations with connections
+│   ├── scenes.json             # Scripted scene flows (steps, dialogue, choices)
+│   ├── npcs.json               # NPC definitions, dialogue, shops
+│   ├── events.json             # Game events (conditions, changes, bonus)
+│   ├── items.json              # Item definitions and effects
+│   └── traits.json             # Trait definitions and effects
 │
-├── mods/                       # MODDING DIRECTORY
-│   └── my_first_mod/      
+├── mods/                       # MODDING DIRECTORY (userData, writable)
+│   └── my_first_mod/
 │       ├── mod.json            # Metadata and load order definition
-│       ├── locations.json      # Adds or overwrites locations
-│       ├── scenes.json         # Adds or overwrites scripted scene flows
-│       └── npcs.json
+│       └── *.json              # Override or extend any base data file
 │
-└── saves/                      # MUTABLE STATE
-    └── save1.json              # Serialized gameState
+└── saves/                      # MUTABLE STATE (userData, writable)
+    └── save1.json              # Serialized game state snapshot

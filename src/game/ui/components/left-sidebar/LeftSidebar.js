@@ -44,15 +44,23 @@
  */
 class LeftSidebar extends HTMLElement {
 	static get observedAttributes() {
-		return ["collapsed", "active-tab"];
+		return ["active-tab"];
 	}
+
+	static iconCache = new Map();
 
 	constructor() {
 		super();
 		this.attachShadow({ mode: "open" });
 
-		this.collapseX = "-350px";
-		this.sidebarWidth = "400px";
+		this.sidebarWidth = 400;   // px — total sidebar width
+		this.tabColumnWidth = 50;  // px — visible tab strip width when collapsed
+		this.tabSize = 65;         // px — tab handle width and height
+		this.tabGap = 12;          // px — gap between tab handles
+		this.iconSize = 32;        // px — icon width and height inside tab handles
+
+		// Derived: how far left to slide so only the tab strip stays visible.
+		this.collapseX = -(this.sidebarWidth - this.tabColumnWidth);
 	}
 
 	connectedCallback() {
@@ -88,17 +96,17 @@ class LeftSidebar extends HTMLElement {
                     top: 0;
                     left: 0;
                     height: 100%;
-                    width: ${this.sidebarWidth};
+                    width: ${this.sidebarWidth}px;
                     z-index: 1000;
                     transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
                     transform: translateX(0);
                     display: block;
                     font-family: sans-serif;
-                    pointer-events: none; 
+                    pointer-events: none;
                 }
 
                 :host([collapsed]) {
-                    transform: translateX(${this.collapseX});
+                    transform: translateX(${this.collapseX}px);
                 }
 
                 ::slotted(:not([active])) {
@@ -113,7 +121,7 @@ class LeftSidebar extends HTMLElement {
 
                 .container {
                     display: grid;
-                    grid-template-columns: 1fr 50px;
+                    grid-template-columns: 1fr ${this.tabColumnWidth}px;
                     height: 100%;
                     width: 100%;
                 }
@@ -121,11 +129,11 @@ class LeftSidebar extends HTMLElement {
                 .content-area {
                     background-color: var(--sidebar-bg, white);
                     height: 100%;
-                    overflow: hidden; 
+                    overflow: hidden;
                     display: flex;
                     flex-direction: column;
                     box-sizing: border-box;
-                    padding: var(--sidebar-padding, 24px); 
+                    padding: var(--sidebar-padding, 24px);
                     border-right: 1px solid var(--sidebar-border, rgba(0,0,0,0.1));
                     box-shadow: 2px 0 10px var(--sidebar-shadow, rgba(0,0,0,0.05));
                     pointer-events: auto;
@@ -138,13 +146,13 @@ class LeftSidebar extends HTMLElement {
                     height: 100%;
                     padding-top: 20px;
                     padding-bottom: 20px;
-                    gap: 12px;
+                    gap: ${this.tabGap}px;
                     box-sizing: border-box;
                 }
 
                 .tab-handle {
-                    width: 65px;
-                    height: 65px;
+                    width: ${this.tabSize}px;
+                    height: ${this.tabSize}px;
                     background-color: var(--tab-inactive-bg, white);
                     color: var(--tab-icon-color, #555);
                     display: flex;
@@ -156,7 +164,7 @@ class LeftSidebar extends HTMLElement {
 					border-left: none;
 					outline: none;
 					padding: 0;
-                    
+
                     border-top-right-radius: 12px;
                     border-bottom-right-radius: 12px;
                     box-shadow: 4px 2px 5px var(--sidebar-shadow, rgba(0,0,0,0.1));
@@ -164,7 +172,7 @@ class LeftSidebar extends HTMLElement {
                     position: relative;
                     transform: translateX(0);
                 }
-                
+
                 :host([collapsed]) .tab-handle {
                     background-color: var(--tab-collapsed-bg, white);
                     color: var(--tab-icon-color, #555);
@@ -180,14 +188,14 @@ class LeftSidebar extends HTMLElement {
                     color: var(--tab-active-icon-color, #000);
 					filter: brightness(1);
                     z-index: 20;
-                    box-shadow: 6px 2px 8px var(--sidebar-shadow, rgba(0,0,0,0.15)); 
+                    box-shadow: 6px 2px 8px var(--sidebar-shadow, rgba(0,0,0,0.15));
                     transform: translateX(0);
                 }
 
                 .tab-handle.active::before {
                     content: '';
                     position: absolute;
-                    left: -5px; 
+                    left: -5px;
                     top: -1px;
                     width: 10px;
                     height: calc(100% + 2px);
@@ -195,8 +203,8 @@ class LeftSidebar extends HTMLElement {
                 }
 
                 .icon {
-                    width: 32px;
-                    height: 32px;
+                    width: ${this.iconSize}px;
+                    height: ${this.iconSize}px;
                 }
 
                 .transparent-space {
@@ -209,7 +217,7 @@ class LeftSidebar extends HTMLElement {
                 <div class="content-area">
                     <slot></slot>
                 </div>
-                
+
                 <div class="toggle-column" id="tabs-container" role="tablist" aria-orientation="vertical">
                 </div>
             </div>
@@ -319,46 +327,22 @@ class LeftSidebar extends HTMLElement {
 	}
 
 	getIconPath(iconName) {
-		switch (iconName) {
-			case "stats":
-				return "./static/svg/notes.svg";
-			case "traits":
-				return "./static/svg/traits.svg";
-			case "inventory":
-				return "./static/svg/inventory.svg";
-			case "home":
-				return "./static/svg/home.svg";
-			case "settings":
-			case "heart-broken":
-				return "./static/svg/heart-broken.svg";
-			case "heart":
-				return "./static/svg/heart.svg";
-			case "save":
-				return "./static/svg/align-bottom-svgrepo-com.svg";
-			case "user":
-				return "./static/svg/user.svg";
-			case "logout":
-				return "./static/svg/logout.svg";
-			default:
-				return null;
-		}
+		if (!iconName) return null;
+		const base = window.api?.staticBasePath ?? "./static";
+		return `${base}/svg/${iconName}.svg`;
 	}
 
 	async loadSvgIcon(url, btnElement) {
-		if (!LeftSidebar.iconCache) {
-			LeftSidebar.iconCache = new Map();
-		}
-
 		try {
-			let svgText;
 			if (LeftSidebar.iconCache.has(url)) {
-				svgText = LeftSidebar.iconCache.get(url);
-			} else {
-				const response = await fetch(url);
-				if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-				svgText = await response.text();
-				LeftSidebar.iconCache.set(url, svgText);
+				btnElement.innerHTML = "";
+				btnElement.appendChild(LeftSidebar.iconCache.get(url).cloneNode(true));
+				return;
 			}
+
+			const response = await fetch(url);
+			if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+			const svgText = await response.text();
 
 			const parser = new DOMParser();
 			const doc = parser.parseFromString(svgText, "image/svg+xml");
@@ -369,22 +353,18 @@ class LeftSidebar extends HTMLElement {
 				svgElement.removeAttribute("width");
 				svgElement.removeAttribute("height");
 
-				const allElements = [svgElement, ...svgElement.querySelectorAll("*")];
-				allElements.forEach((el) => {
+				[svgElement, ...svgElement.querySelectorAll("*")].forEach((el) => {
 					if (el.hasAttribute("stroke") && el.getAttribute("stroke") !== "none") {
 						el.setAttribute("stroke", "currentColor");
 					}
 					if (el.hasAttribute("fill") && el.getAttribute("fill") !== "none") {
 						el.setAttribute("fill", "currentColor");
 					}
-					if (el.style && el.style.fill && el.style.fill !== "none") {
-						el.style.fill = "currentColor";
-					}
-					if (el.style && el.style.stroke && el.style.stroke !== "none") {
-						el.style.stroke = "currentColor";
-					}
+					if (el.style?.fill && el.style.fill !== "none") el.style.fill = "currentColor";
+					if (el.style?.stroke && el.style.stroke !== "none") el.style.stroke = "currentColor";
 				});
 
+				LeftSidebar.iconCache.set(url, svgElement.cloneNode(true));
 				btnElement.innerHTML = "";
 				btnElement.appendChild(svgElement);
 			}

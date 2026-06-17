@@ -23,7 +23,7 @@
  *   layout, player panel rendering, or activity log rendering.
  *
  * Architectural assumptions and constraints:
- * - This file is loaded before src/ui/ui.js and contributes the global
+ * - This file is loaded before src/game/ui/ui.js and contributes the global
  *   ShopRenderer object.
  * - It returns DOM nodes to the caller rather than appending directly to the
  *   main container, keeping layout ownership in worldView.js.
@@ -37,8 +37,8 @@
  * - Hiding non-stackable owned items depends on Engine.canShowShopItem.
  *
  * Related files:
- * - src/ui/renderers/worldView.js inserts this section into the location view.
- * - src/engine/systems/inventorySystem.js implements shop and item behavior.
+ * - src/game/ui/renderers/worldView.js inserts this section into the location view.
+ * - src/game/systems/inventorySystem.js implements shop and item behavior.
  */
 const ShopRenderer = {
 	createShopSection(npcId, data) {
@@ -54,7 +54,7 @@ const ShopRenderer = {
 		wrapper.className = "flex flex-col gap-3";
 
 		const visibleItems = npc.shop.inventory.filter((shopItem) => {
-			return Engine.canShowShopItem(shopItem.id);
+			return Engine.canShowShopItem(shopItem.id, shopItem);
 		});
 
 		if (visibleItems.length === 0) {

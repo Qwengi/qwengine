@@ -4,7 +4,7 @@
  * Purpose:
  * This file defines the global UI object used by Engine systems. It keeps the
  * public UI API stable while delegating substantial rendering work to focused
- * renderer modules under src/ui/renderers.
+ * renderer modules under src/game/ui/renderers.
  *
  * Responsibilities:
  * - Provide activity log output through UI.log.
@@ -42,10 +42,10 @@
  *   new renderers still exist.
  *
  * Related files:
- * - src/ui/renderers/playerPanels.js
- * - src/ui/renderers/shopRenderer.js
- * - src/ui/renderers/worldView.js
- * - src/engine/engine.js and src/engine/systems/*.js call this facade.
+ * - src/game/ui/renderers/playerPanels.js
+ * - src/game/ui/renderers/shopRenderer.js
+ * - src/game/ui/renderers/worldView.js
+ * - src/game/engine.js and src/game/systems/*.js call this facade.
  */
 const UI = {
 	log(msg, isAction = false, customColor = null) {

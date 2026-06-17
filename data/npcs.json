@@ -1,1 +1,52 @@
-{}
+{
+  "krelm": {
+    "name": "Krelm",
+    "dialogue": [
+      { "text": "Need more silverberries. Don't bruise them.", "conditions": { "tavern_rep": { "min": 3 } } },
+      { "text": "Work's available if you want it. Ask around." }
+    ],
+    "color": "#d97706",
+    "locations": ["mossy_lantern"]
+  },
+  "mira": {
+    "name": "Mira",
+    "dialogue": [
+      { "text": "Stay away from the deep grove. I mean it.", "conditions": { "boulder_moved": { "entity": "world", "min": 1 } } },
+      { "text": "They say the Eldergrove shifts at night. I believe it." }
+    ],
+    "color": "#7c3aed",
+    "locations": ["mossy_lantern"]
+  },
+  "old_hane": {
+    "name": "Old Hane",
+    "dialogue": [
+      { "text": "Whatever you found in the deep grove — don't bring it back here.", "conditions": { "boulder_moved": { "entity": "world", "min": 1 } } },
+      { "text": "Stay out of the deep grove unless you know what you're looking for." }
+    ],
+    "color": "#16a34a",
+    "locations": ["mossy_lantern"]
+  },
+  "tamm": {
+    "name": "Tamm",
+    "dialogue": [
+      { "text": "That boulder's gone then. Good.", "conditions": { "boulder_moved": { "entity": "world", "min": 1 } } },
+      { "text": "Sold one already. Still got one left.", "conditions": { "tavern_rep": { "min": 1 } } },
+      { "text": "Tools. I sell tools." }
+    ],
+    "color": "#94a3b8",
+    "locations": ["brindlewood_square"],
+    "shop": {
+      "inventory": [
+        {
+          "id": "pickaxe",
+          "conditions": { "boulder_moved": { "entity": "world", "eq": 0 } },
+          "cost": [{ "entity": "player", "stat": "coin", "action": "sub", "amount": 5 }]
+        },
+        {
+          "id": "healing_potion",
+          "cost": [{ "entity": "player", "stat": "coin", "action": "sub", "amount": 4 }]
+        }
+      ]
+    }
+  }
+}

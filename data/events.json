@@ -1,14 +1,108 @@
 {
-	"sleep": {
-		"name": "Sleep",
-		"changes": [{ "entity": "player", "stat": "Energy", "action": "add", "amount": 100 }],
-		"msg": "You wake up feeling invigorated.",
-		"locations": ["player_bedroom"]
-	},
-	"exercise": {
-		"name": "Exercise",
-		"changes": [{ "entity": "player", "stat": "Energy", "action": "sub", "amount": 10 }],
-		"msg": "You do a few pushups.",
-		"locations": ["player_bedroom"]
-	}
+  "serve_drinks": {
+    "name": "Serve the patrons",
+    "locations": ["mossy_lantern"],
+    "conditions": { "stamina": { "min": 10 } },
+    "changes": [
+      { "entity": "player", "stat": "stamina", "action": "sub", "amount": 15 },
+      { "entity": "player", "stat": "coin", "action": "add", "amount": 3 },
+      { "entity": "player", "stat": "tavern_rep", "action": "add", "amount": 2 }
+    ],
+    "msg": "You work the room for an hour — refills, a spilled pint, a brief argument about a game of cards. Krelm nods once when you hand over the coin pouch.",
+    "bonus": {
+      "chance": {
+        "base": 10,
+        "modifiers": [{ "entity": "player", "stat": "charisma", "op": "add", "scale": 18 }]
+      },
+      "changes": [
+        { "entity": "player", "stat": "coin", "action": "add", "amount": 2 }
+      ],
+      "msg": "A regular at the corner table slides an extra coin across without looking up. You pocket it."
+    }
+  },
+  "clean_tables": {
+    "name": "Clean and tidy",
+    "locations": ["mossy_lantern"],
+    "conditions": { "stamina": { "min": 5 } },
+    "changes": [
+      { "entity": "player", "stat": "stamina", "action": "sub", "amount": 8 },
+      { "entity": "player", "stat": "tavern_rep", "action": "add", "amount": 1 }
+    ],
+    "msg": "Tables scrubbed, ashes swept, floor less bad than it was. Krelm says nothing, which you're learning to read as approval."
+  },
+  "talk_to_patrons": {
+    "name": "Talk to patrons",
+    "locations": ["mossy_lantern"],
+    "conditions": { "stamina": { "min": 5 } },
+    "changes": [
+      { "entity": "player", "stat": "stamina", "action": "sub", "amount": 5 },
+      { "entity": "player", "stat": "charisma", "action": "add_progress", "amount": 25 }
+    ],
+    "msg": "You drift between the tables, learning names and remembering faces. Small talk. The slow work of being liked."
+  },
+  "rest_at_inn": {
+    "name": "Rest for the night",
+    "locations": ["mossy_lantern", "room_three"],
+    "changes": [
+      { "entity": "player", "stat": "stamina", "action": "set", "amount": 100 }
+    ],
+    "msg": "You climb to room three and sleep without dreaming. By morning the candle stub has burned out entirely."
+  },
+  "sell_berries": {
+    "name": "Sell berries to Krelm",
+    "locations": ["mossy_lantern"],
+    "conditions": { "berries": { "min": 5 } },
+    "changes": [
+      { "entity": "player", "stat": "berries", "action": "sub", "amount": 5 },
+      { "entity": "player", "stat": "coin", "action": "add", "amount": 8 }
+    ],
+    "msg": "Krelm weighs the berries in his palm, counts silently, and slides you eight coin. 'Don't bruise them next time,' he says."
+  },
+  "do_pushups": {
+    "name": "Do pushups",
+    "locations": ["room_three"],
+    "conditions": { "stamina": { "min": 10 } },
+    "changes": [
+      { "entity": "player", "stat": "stamina", "action": "sub", "amount": 10 },
+      { "entity": "player", "stat": "strength", "action": "add_progress", "amount": 20 }
+    ],
+    "msg": "Pushups on the uneven floorboards until your arms give out. The wood is cold. You don't stop until you have to."
+  },
+  "gather_berries": {
+    "name": "Search for berries",
+    "locations": ["eldergrove_edge"],
+    "conditions": { "stamina": { "min": 20 } },
+    "changes": [
+      { "entity": "player", "stat": "stamina", "action": "sub", "amount": 25 },
+      { "entity": "player", "stat": "berries", "action": "add", "amount": 5 }
+    ],
+    "msg": "You push into the undergrowth, hands cold, watching for the blue glint among the roots. An hour later you've filled your pockets. The forest makes no sound as you leave."
+  },
+  "move_boulder": {
+    "name": "Move the boulder",
+    "locations": ["eldergrove_edge"],
+    "once": true,
+    "hidden_when_locked": true,
+    "conditions": { "stamina": { "min": 20 } },
+    "conditions_any": {
+      "strength": { "min": 2 },
+      "pickaxe": { "item": true }
+    },
+    "changes": [
+      { "entity": "player", "stat": "stamina", "action": "sub", "amount": 20 },
+      { "entity": "player", "action": "remove_item", "item": "pickaxe" },
+      { "entity": "world", "stat": "boulder_moved", "action": "set", "amount": 1 }
+    ],
+    "msg": "You plant your feet and push. The boulder grinds, resists, then gives. A narrow path opens beyond it into the deep Eldergrove. Something in your pack shifts loose — you'll take stock later."
+  },
+  "gather_rare_berries": {
+    "name": "Gather silverberries",
+    "locations": ["eldergrove_deep"],
+    "conditions": { "stamina": { "min": 20 } },
+    "changes": [
+      { "entity": "player", "stat": "stamina", "action": "sub", "amount": 20 },
+      { "entity": "player", "stat": "berries", "action": "add", "amount": 8 }
+    ],
+    "msg": "The silverberries come away from the stems easily, as if they were waiting. You fill your pockets twice over."
+  }
 }

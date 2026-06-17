@@ -14,7 +14,7 @@
  * - Guard against unsafe property keys when writing data-driven values.
  *
  * Interactions:
- * - Used by src/ui/renderers/worldView.js to enable/disable action buttons.
+ * - Used by src/game/ui/renderers/worldView.js to enable/disable action buttons.
  * - Used by eventSystem before event changes and teleports are applied.
  * - Writes to Engine.state or entities returned by Engine.getEntity.
  * - Logs validation failures through UI.log when execution is attempted.
@@ -42,8 +42,8 @@
  *   against prototype-pollution keys.
  *
  * Related files:
- * - src/engine/systems/eventSystem.js calls validation and application.
- * - src/ui/renderers/worldView.js builds the matching form controls.
+ * - src/game/systems/eventSystem.js calls validation and application.
+ * - src/game/ui/renderers/worldView.js builds the matching form controls.
  * - src/engine/dataRegistry.js copies step inputs onto generated scene events.
  */
 const EngineInputSystem = {

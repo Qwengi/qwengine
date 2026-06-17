@@ -43,9 +43,9 @@
  *   limited to high-level movement feedback.
  *
  * Related files:
- * - src/engine/engine.js wires this system into Engine.
+ * - src/game/engine.js wires this system into Engine.
  * - src/engine/dataRegistry.js generates scene locations.
- * - src/engine/systems/saveSystem.js uses resolveLocationId for old saves.
+ * - src/game/systems/saveSystem.js uses resolveLocationId for old saves.
  */
 const EngineWorldSystem = {
 	resetState: function () {
@@ -58,6 +58,7 @@ const EngineWorldSystem = {
 			location: startLoc,
 			entities: structuredClone(this.data.entities || {}),
 			activeShop: null,
+			usedEvents: {},
 		};
 	},
 
@@ -92,7 +93,7 @@ const EngineWorldSystem = {
 
 		this.state.location = resolvedLocId;
 		this.state.activeShop = null;
-		UI.log(`Moved to ${loc.name || locId}.`, true);
+		if (!resolvedLocId.startsWith("scene:")) UI.log(`Moved to ${loc.name || locId}.`, true);
 		UI.renderView(this.data, this.state);
 	},
 };
