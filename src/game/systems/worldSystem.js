@@ -63,6 +63,21 @@ const EngineWorldSystem = {
 	},
 
 	getConfiguredStartLocation: function () {
+		// Editor-launched test windows pass ?scene=&step= to jump straight to a scene/step.
+		try {
+			const params = new URLSearchParams(window.location.search);
+			const sceneOverride = params.get("scene");
+			const stepOverride = params.get("step");
+			if (sceneOverride) {
+				if (stepOverride && this.data.scenes?.[sceneOverride]?.steps?.[stepOverride]) {
+					return `scene:${sceneOverride}:${stepOverride}`;
+				}
+				if (this.data.scenes?.[sceneOverride]?.start_location) {
+					return this.data.scenes[sceneOverride].start_location;
+				}
+			}
+		} catch (_e) { /* no window.location in non-renderer contexts */ }
+
 		const sceneId = Config.starting_scene || Config.startingScene;
 		if (sceneId && this.data.scenes?.[sceneId]?.start_location) {
 			return this.data.scenes[sceneId].start_location;

@@ -3,7 +3,9 @@
  *
  * Purpose:
  * Initialises EditorState, registers nav panel buttons, and activates the first
- * panel on DOMContentLoaded. Also owns dirty-indicator updates for the nav.
+ * panel on DOMContentLoaded. Also owns dirty-indicator updates for the nav,
+ * the global Save All button, the Cmd+S / Cmd+Shift+S keyboard shortcuts,
+ * and the unsaved-changes guard on window close.
  *
  * Related files:
  * - src/editor/editorState.js holds rawData and dirty tracking.
@@ -64,6 +66,172 @@ const EditorNav = {
 
 	updateDirtyIndicators() {
 		this.updateNavStyles();
+		EditorShell.refreshSaveAll();
+	},
+};
+
+const EditorShell = {
+	saveAllBtn: null,
+	reloadBtn: null,
+	undoBtn: null,
+	redoBtn: null,
+	statusEl: null,
+
+	init() {
+		this.saveAllBtn = document.getElementById("editor-save-all");
+		this.reloadBtn = document.getElementById("editor-reload");
+		this.undoBtn = document.getElementById("editor-undo");
+		this.redoBtn = document.getElementById("editor-redo");
+		this.statusEl = document.getElementById("editor-status");
+
+		if (this.saveAllBtn) this.saveAllBtn.onclick = () => this.saveAll();
+		if (this.reloadBtn) this.reloadBtn.onclick = () => this.reloadFromDisk();
+		if (this.undoBtn) this.undoBtn.onclick = () => this.undo();
+		if (this.redoBtn) this.redoBtn.onclick = () => this.redo();
+		this.refreshSaveAll();
+
+		document.addEventListener("keydown", (e) => {
+			if (!(e.metaKey || e.ctrlKey)) return;
+			const key = e.key?.toLowerCase();
+			if (key === "s") {
+				e.preventDefault();
+				if (e.shiftKey) this.saveAll();
+				else this.saveActive();
+			} else if (key === "z") {
+				e.preventDefault();
+				if (e.shiftKey) this.redo();
+				else this.undo();
+			} else if (key === "y") {
+				e.preventDefault();
+				this.redo();
+			}
+		});
+
+		// Block window close while there are unsaved files; main process shows
+		// the native confirmation via webContents 'will-prevent-unload'.
+		window.addEventListener("beforeunload", (e) => {
+			if (EditorState.dirty.size > 0) {
+				e.preventDefault();
+				e.returnValue = false;
+			}
+		});
+	},
+
+	refreshSaveAll() {
+		if (this.saveAllBtn) {
+			const count = EditorState.dirty.size;
+			this.saveAllBtn.disabled = count === 0;
+			this.saveAllBtn.textContent = count > 0 ? `Save All (${count})` : "Save All";
+		}
+		this.refreshUndoRedo();
+	},
+
+	async reloadFromDisk() {
+		if (EditorState.dirty.size > 0) {
+			const ok = confirm(
+				`Reload from disk will discard ${EditorState.dirty.size} unsaved file(s):\n${Array.from(EditorState.dirty).join(", ")}\n\nContinue?`,
+			);
+			if (!ok) return;
+		}
+		this._setStatus("Reloading from disk…");
+		try {
+			await EditorState.load();  // resets history to a single initial snapshot
+			EditorNav.updateDirtyIndicators();
+			const id = EditorNav.activeId;
+			if (id) EditorNav.activate(id, document.getElementById("editor-content"));
+			EditorValidation.render(EditorValidation.validate());
+			EditorSync.emit({ type: "editor:full-reload" });
+			this._setStatus("Reloaded from disk.", true);
+		} catch (err) {
+			this._setStatus(`Reload failed: ${err.message}`, false, true);
+		}
+	},
+
+	undo() {
+		if (!EditorState.undo()) { this._setStatus("Nothing to undo."); return; }
+		this._afterTimeTravel("Undo.");
+	},
+
+	redo() {
+		if (!EditorState.redo()) { this._setStatus("Nothing to redo."); return; }
+		this._afterTimeTravel("Redo.");
+	},
+
+	_afterTimeTravel(msg) {
+		this.refreshSaveAll();
+		this.refreshUndoRedo();
+		EditorValidation.render(EditorValidation.validate());
+		const id = EditorNav.activeId;
+		if (id) EditorNav.activate(id, document.getElementById("editor-content"));
+		EditorSync.emit({ type: "editor:full-reload" });
+		this._setStatus(msg, true);
+	},
+
+	refreshUndoRedo() {
+		if (this.undoBtn) this.undoBtn.disabled = !EditorState.canUndo();
+		if (this.redoBtn) this.redoBtn.disabled = !EditorState.canRedo();
+	},
+
+	async saveActive() {
+		const id = EditorNav.activeId;
+		if (!id) return { saved: [], errors: [] };
+		return this.saveOne(id);
+	},
+
+	async saveOne(fileType) {
+		if (!EditorState.dirty.has(fileType)) {
+			this._setStatus(`Nothing to save in ${fileType}.`);
+			return { saved: [], errors: [] };
+		}
+		this._setStatus(`Saving ${fileType}…`);
+		try {
+			await EditorState.save(fileType);
+			EditorValidation.render(EditorValidation.validate());
+			EditorSync.emit({ type: "save:complete", saved: [fileType], errors: [] });
+			this._setStatus(`Saved ${fileType}.`, true);
+			return { saved: [fileType], errors: [] };
+		} catch (err) {
+			const errPayload = { fileType, message: err.message };
+			EditorSync.emit({ type: "save:complete", saved: [], errors: [errPayload] });
+			this._setStatus(`Save failed: ${err.message}`, false, true);
+			return { saved: [], errors: [errPayload] };
+		}
+	},
+
+	async saveAll() {
+		if (EditorState.dirty.size === 0) {
+			this._setStatus("Nothing to save.");
+			return { saved: [], errors: [] };
+		}
+		this._setStatus(`Saving ${EditorState.dirty.size} file(s)…`);
+		const result = await EditorState.saveAll();
+		EditorValidation.render(EditorValidation.validate());
+		if (result.errors.length === 0) {
+			this._setStatus(`Saved: ${result.saved.join(", ")}.`, true);
+		} else {
+			const failed = result.errors.map((e) => e.fileType).join(", ");
+			this._setStatus(`Saved ${result.saved.length}, failed: ${failed}`, false, true);
+		}
+		EditorSync.emit({ type: "save:complete", saved: result.saved, errors: result.errors });
+		return result;
+	},
+
+	_setStatus(text, ok = false, error = false) {
+		if (!this.statusEl) return;
+		this.statusEl.textContent = text;
+		this.statusEl.className = error
+			? "text-xs italic text-red-400"
+			: ok
+				? "text-xs italic text-emerald-400"
+				: "text-xs italic text-slate-500";
+		if (ok || error) {
+			setTimeout(() => {
+				if (this.statusEl?.textContent === text) {
+					this.statusEl.textContent = "";
+					this.statusEl.className = "text-xs text-slate-500 italic";
+				}
+			}, 2500);
+		}
 	},
 };
 
@@ -74,6 +242,23 @@ document.addEventListener("DOMContentLoaded", async () => {
 	try {
 		await EditorState.load();
 		if (statusEl) statusEl.textContent = "Ready";
+
+		EditorSync.init({
+			provideSnapshot: () => ({
+				rawData: EditorState.rawData,
+				dirty: Array.from(EditorState.dirty),
+			}),
+		});
+
+		EditorSync.subscribe((payload) => {
+			if (payload?.type === "save:request") { EditorShell.saveAll(); return; }
+			if (payload?.type === "undo:request") { EditorShell.undo(); return; }
+			if (payload?.type === "redo:request") { EditorShell.redo(); return; }
+			EditorState.applyRemoteEvent(payload);
+		});
+
+		EditorShell.init();
+		EditorZoom.init();
 		EditorNav.init();
 		const warnings = EditorValidation.validate();
 		EditorValidation.render(warnings);

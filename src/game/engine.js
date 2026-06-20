@@ -93,7 +93,17 @@ const Engine = {
 
 			this.resetState();
 
-			await this.load("save1", true);
+			// When launched as a scene-test window from the editor, skip the auto-load
+			// so the player starts at the requested scene instead of wherever save1 is.
+			const params = new URLSearchParams(window.location.search);
+			const isSceneTest = !!params.get("scene");
+
+			if (isSceneTest) {
+				UI.log(`▶ Test scene: ${params.get("scene")}${params.get("step") ? " / " + params.get("step") : ""}`, true);
+				UI.renderView(this.data, this.state);
+			} else {
+				await this.load("save1", true);
+			}
 		} catch (err) {
 			console.error("[Engine] Init failed:", err);
 			UI.log(`CRITICAL ERROR: ${err.message}`, false, "#f87171");

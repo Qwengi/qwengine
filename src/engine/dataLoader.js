@@ -41,9 +41,9 @@
  * - src/engine/dataRegistry.js consumes loadRaw output.
  */
 const DataLoader = {
-	loadRaw: async function () {
+	loadRaw: async function (opts) {
 		if (window.api) {
-			return await window.api.loadRawData();
+			return await window.api.loadRawData(opts);
 		}
 		return null;
 	},

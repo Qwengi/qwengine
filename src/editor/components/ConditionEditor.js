@@ -58,6 +58,15 @@ const ConditionEditor = {
 		const currentOp = req.item ? "item" : req.min !== undefined ? "min" : req.max !== undefined ? "max" : "eq";
 		opSel.value = currentOp;
 
+		const refreshDatalist = () => {
+			const ids = opSel.value === "item"
+				? EditorState.allItemIds()
+				: EditorState.allStatIdsAcrossEntities();
+			EditorPanels.bindDatalist(statInput, opSel.value === "item" ? "dl-items" : "dl-stats", ids);
+			statInput.placeholder = opSel.value === "item" ? "item id" : "stat id";
+		};
+		refreshDatalist();
+
 		const valInput = document.createElement("input");
 		valInput.className = "px-2 py-1 bg-slate-900 border border-slate-700 rounded text-xs text-slate-200 w-16 focus:outline-none focus:border-indigo-500";
 		valInput.type = "number";
@@ -68,6 +77,7 @@ const ConditionEditor = {
 		entityInput.className = "px-2 py-1 bg-slate-900 border border-slate-700 rounded text-xs text-slate-200 w-20 focus:outline-none focus:border-indigo-500";
 		entityInput.placeholder = "entity";
 		entityInput.value = req.entity || "";
+		EditorPanels.bindDatalist(entityInput, "dl-entities", Object.keys(EditorState.rawData?.base?.entities || {}));
 
 		const removeBtn = document.createElement("button");
 		removeBtn.className = "text-slate-600 hover:text-red-400 text-xs px-1";
@@ -85,6 +95,7 @@ const ConditionEditor = {
 
 		opSel.onchange = () => {
 			valInput.style.display = opSel.value === "item" ? "none" : "";
+			refreshDatalist();
 			onUpdate(statInput.value, buildReq());
 		};
 		statInput.oninput = () => onUpdate(statInput.value, buildReq());

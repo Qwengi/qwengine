@@ -26,6 +26,11 @@ const DialogueEditor = {
 				if (swap < 0 || swap >= next.length) return;
 				[next[idx], next[swap]] = [next[swap], next[idx]];
 				onChange(next);
+			}, (from, to) => {
+				const next = [...list];
+				const [moved] = next.splice(from, 1);
+				next.splice(to, 0, moved);
+				onChange(next);
 			}));
 		});
 
@@ -38,17 +43,21 @@ const DialogueEditor = {
 		container.appendChild(rows);
 	},
 
-	_row(beat, idx, total, onUpdate, onRemove, onMove) {
+	_row(beat, idx, total, onUpdate, onRemove, onMove, onReorder) {
 		const row = document.createElement("div");
 		row.className = "flex flex-col gap-1 p-2 bg-slate-900/50 rounded border border-slate-800";
 
 		const topRow = document.createElement("div");
 		topRow.className = "flex gap-1 items-center";
 
+		const handle = EditorPanels.dragHandle();
+		EditorPanels.makeReorderableRow(row, handle, idx, onReorder);
+
 		const actorInput = document.createElement("input");
 		actorInput.className = "px-2 py-1 bg-slate-950 border border-slate-700 rounded text-xs text-slate-300 w-24 focus:outline-none focus:border-indigo-500";
 		actorInput.placeholder = "actor (opt)";
 		actorInput.value = beat.actor || "";
+		EditorPanels.bindDatalist(actorInput, "dl-actors", ["player", ...EditorState.allNpcIds()]);
 
 		const typeToggle = document.createElement("select");
 		typeToggle.className = "px-2 py-1 bg-slate-950 border border-slate-700 rounded text-xs text-slate-300 focus:outline-none focus:border-indigo-500";
@@ -77,6 +86,7 @@ const DialogueEditor = {
 		removeBtn.textContent = "✕";
 		removeBtn.onclick = onRemove;
 
+		topRow.appendChild(handle);
 		topRow.appendChild(actorInput);
 		topRow.appendChild(typeToggle);
 		topRow.appendChild(upBtn);
@@ -84,9 +94,10 @@ const DialogueEditor = {
 		topRow.appendChild(removeBtn);
 
 		const textArea = document.createElement("textarea");
-		textArea.className = "px-2 py-1 bg-slate-950 border border-slate-700 rounded text-xs text-slate-200 resize-none focus:outline-none focus:border-indigo-500";
-		textArea.rows = 2;
+		textArea.className = "px-3 py-2 bg-slate-950 border border-slate-700 rounded text-sm text-slate-200 resize-y focus:outline-none focus:border-indigo-500 leading-relaxed";
+		textArea.rows = 4;
 		textArea.value = beat.text || beat.action || "";
+		EditorPanels.autoGrow(textArea, { minRows: 4, maxRows: 24 });
 
 		const condToggle = document.createElement("button");
 		condToggle.className = "text-xs text-slate-500 hover:text-indigo-400 text-left mt-1";
@@ -103,6 +114,15 @@ const DialogueEditor = {
 			condToggle.textContent = open ? "▾ conditions" : "▸ conditions";
 		};
 
+		const imageToggle = document.createElement("button");
+		imageToggle.className = "text-xs text-slate-500 hover:text-indigo-400 text-left mt-1";
+		const hasImage = !!beat.image;
+		imageToggle.textContent = hasImage ? "▾ image" : "▸ image";
+
+		const imageContainer = document.createElement("div");
+		imageContainer.className = "mt-1";
+		imageContainer.style.display = hasImage ? "" : "none";
+
 		const buildBeat = () => {
 			const isAction = typeToggle.value === "action";
 			const b = {};
@@ -111,7 +131,19 @@ const DialogueEditor = {
 			else b.text = textArea.value;
 			if (beat.conditions) b.conditions = beat.conditions;
 			if (beat.conditions_any) b.conditions_any = beat.conditions_any;
+			if (beat.image) b.image = beat.image;
 			return b;
+		};
+
+		imageContainer.appendChild(EditorPanels.imageInput(beat.image, (v) => {
+			beat.image = v;
+			onUpdate(buildBeat());
+		}));
+
+		imageToggle.onclick = () => {
+			const open = imageContainer.style.display === "none";
+			imageContainer.style.display = open ? "" : "none";
+			imageToggle.textContent = open ? "▾ image" : "▸ image";
 		};
 
 		if (hasCond) {
@@ -129,6 +161,8 @@ const DialogueEditor = {
 		row.appendChild(textArea);
 		row.appendChild(condToggle);
 		row.appendChild(condContainer);
+		row.appendChild(imageToggle);
+		row.appendChild(imageContainer);
 		return row;
 	},
 };

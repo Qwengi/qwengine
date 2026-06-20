@@ -8,12 +8,16 @@ const NpcsPanel = {
 	},
 
 	_renderForm(col, id, npc, onUpdate) {
-		const update = () => onUpdate(idInput.value || id, npc);
+		const update = () => EditorState.markDirty("npcs");
 
 		const idInput = document.createElement("input");
 		idInput.className = "px-3 py-2 bg-slate-900 border border-slate-700 rounded text-sm text-slate-200 w-full font-mono focus:outline-none focus:border-indigo-500";
 		idInput.value = id;
-		idInput.oninput = update;
+		idInput.onchange = () => {
+			const newId = idInput.value.trim();
+			if (!newId || newId === id) { idInput.value = id; return; }
+			onUpdate(newId, npc);
+		};
 		col.appendChild(EditorPanels.fieldRow("ID", idInput));
 
 		const nameInput = EditorPanels.textInput(npc.name, (v) => { npc.name = v; update(); });
@@ -100,6 +104,7 @@ const NpcsPanel = {
 				itemIdInput.placeholder = "item id";
 				itemIdInput.value = shopItem.id || "";
 				itemIdInput.oninput = () => { shopItem.id = itemIdInput.value; update(); };
+				EditorPanels.bindDatalist(itemIdInput, "dl-items", EditorState.allItemIds());
 
 				const removeBtn = document.createElement("button");
 				removeBtn.className = "text-slate-600 hover:text-red-400 text-xs px-1";

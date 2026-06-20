@@ -8,12 +8,16 @@ const ItemsPanel = {
 	},
 
 	_renderForm(col, id, item, onUpdate) {
-		const update = () => onUpdate(idInput.value || id, item);
+		const update = () => EditorState.markDirty("items");
 
 		const idInput = document.createElement("input");
 		idInput.className = "px-3 py-2 bg-slate-900 border border-slate-700 rounded text-sm text-slate-200 w-full font-mono focus:outline-none focus:border-indigo-500";
 		idInput.value = id;
-		idInput.oninput = update;
+		idInput.onchange = () => {
+			const newId = idInput.value.trim();
+			if (!newId || newId === id) { idInput.value = id; return; }
+			onUpdate(newId, item);
+		};
 
 		col.appendChild(EditorPanels.fieldRow("ID", idInput));
 

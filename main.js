@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const { pathToFileURL } = require("url");
@@ -7,7 +7,40 @@ const isEditor = process.argv.includes("--editor");
 
 const ALLOWED_DATA_FILES = new Set(["events", "locations", "scenes", "npcs", "items", "traits", "stats", "config"]);
 
-function createGameWindow() {
+const editorWindows = new Set();
+let primaryEditorWebContents = null;
+const pendingSnapshotRequests = new Map();
+
+function registerEditorWindow(win, { primary = false } = {}) {
+	editorWindows.add(win.webContents);
+	if (primary) primaryEditorWebContents = win.webContents;
+
+	win.webContents.on("destroyed", () => {
+		editorWindows.delete(win.webContents);
+		if (primaryEditorWebContents === win.webContents) primaryEditorWebContents = null;
+	});
+}
+
+// When the renderer's beforeunload sets event.returnValue to abort an unload, Electron
+// fires will-prevent-unload here. Default behaviour is to honor the abort, so we present
+// a native confirmation and call event.preventDefault() to allow close when the user
+// confirms loss.
+function wireUnsavedGuard(win) {
+	win.webContents.on("will-prevent-unload", (event) => {
+		const choice = dialog.showMessageBoxSync(win, {
+			type: "warning",
+			buttons: ["Cancel", "Discard changes"],
+			defaultId: 0,
+			cancelId: 0,
+			title: "Unsaved changes",
+			message: "You have unsaved edits. Close anyway?",
+			detail: "Any unsaved files will be lost. Use Save All (⌘⇧S) to keep them.",
+		});
+		if (choice === 1) event.preventDefault();
+	});
+}
+
+function createGameWindow(opts = {}) {
 	const mainWindow = new BrowserWindow({
 		width: 1200,
 		height: 850,
@@ -16,10 +49,13 @@ function createGameWindow() {
 			contextIsolation: true,
 			nodeIntegration: false,
 			sandbox: false,
+			additionalArguments: opts.additionalArgs || [],
 		},
 	});
 
-	mainWindow.loadFile(path.join(__dirname, "src", "game", "index.html"));
+	mainWindow.loadFile(path.join(__dirname, "src", "game", "index.html"), {
+		query: opts.query || {},
+	});
 }
 
 function createEditorWindow() {
@@ -31,10 +67,38 @@ function createEditorWindow() {
 			contextIsolation: true,
 			nodeIntegration: false,
 			sandbox: false,
+			additionalArguments: ["--editor-role=primary"],
 		},
 	});
 
 	editorWindow.loadFile(path.join(__dirname, "src", "editor", "index.html"));
+	registerEditorWindow(editorWindow, { primary: true });
+	wireUnsavedGuard(editorWindow);
+}
+
+function createStepEditorWindow({ sceneId, stepId }) {
+	const win = new BrowserWindow({
+		width: 1100,
+		height: 850,
+		title: `Step Editor — ${sceneId} / ${stepId}`,
+		webPreferences: {
+			preload: path.join(__dirname, "preload.js"),
+			contextIsolation: true,
+			nodeIntegration: false,
+			sandbox: false,
+			additionalArguments: [
+				"--editor-role=step",
+				`--editor-scene=${sceneId}`,
+				`--editor-step=${stepId}`,
+			],
+		},
+	});
+
+	win.loadFile(path.join(__dirname, "src", "editor", "step-editor.html"), {
+		query: { scene: sceneId, step: stepId },
+	});
+
+	registerEditorWindow(win);
 }
 
 const readJson = (filePath) => {
@@ -115,16 +179,21 @@ app.whenReady().then(() => {
 		if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 	});
 
-	ipcMain.handle("load-raw-data", async () => {
+	ipcMain.handle("load-raw-data", async (_event, opts = {}) => {
+		const processPaths = opts.processPaths !== false;
 		try {
 			const rawData = {
 				storyConfig: readJson(path.join(dataDir, "config.json")) || {},
 				base: {
 					entities: readJson(path.join(dataDir, "stats.json"))?.entities || {},
-					locations: processLocations(readJson(path.join(dataDir, "locations.json")) || {}, dataDir),
+					locations: processPaths
+						? processLocations(readJson(path.join(dataDir, "locations.json")) || {}, dataDir)
+						: (readJson(path.join(dataDir, "locations.json")) || {}),
 					npcs: readJson(path.join(dataDir, "npcs.json")) || {},
 					events: readJson(path.join(dataDir, "events.json")) || {},
-					scenes: processScenes(readJson(path.join(dataDir, "scenes.json")) || {}, dataDir),
+					scenes: processPaths
+						? processScenes(readJson(path.join(dataDir, "scenes.json")) || {}, dataDir)
+						: (readJson(path.join(dataDir, "scenes.json")) || {}),
 					items: readJson(path.join(dataDir, "items.json")) || {},
 					traits: readJson(path.join(dataDir, "traits.json")) || {},
 				},
@@ -147,10 +216,14 @@ app.whenReady().then(() => {
 						rawData.mods.push({
 							meta,
 							entities: readJson(path.join(modDir, "stats.json"))?.entities || {},
-							locations: processLocations(readJson(path.join(modDir, "locations.json")) || {}, modDir),
+							locations: processPaths
+								? processLocations(readJson(path.join(modDir, "locations.json")) || {}, modDir)
+								: (readJson(path.join(modDir, "locations.json")) || {}),
 							npcs: readJson(path.join(modDir, "npcs.json")) || {},
 							events: readJson(path.join(modDir, "events.json")) || {},
-							scenes: processScenes(readJson(path.join(modDir, "scenes.json")) || {}, modDir),
+							scenes: processPaths
+								? processScenes(readJson(path.join(modDir, "scenes.json")) || {}, modDir)
+								: (readJson(path.join(modDir, "scenes.json")) || {}),
 							items: readJson(path.join(modDir, "items.json")) || {},
 							traits: readJson(path.join(modDir, "traits.json")) || {},
 						});
@@ -221,6 +294,58 @@ app.whenReady().then(() => {
 			console.error("[Main] List saves failed:", err);
 			return [];
 		}
+	});
+
+	ipcMain.handle("editor:open-step-window", async (event, { sceneId, stepId }) => {
+		if (!sceneId || !stepId) throw new Error("sceneId and stepId required");
+		createStepEditorWindow({ sceneId, stepId });
+		return true;
+	});
+
+	ipcMain.handle("editor:request-snapshot", async () => {
+		if (!primaryEditorWebContents || primaryEditorWebContents.isDestroyed()) {
+			throw new Error("Primary editor window not available");
+		}
+
+		const requestId = `snap_${process.hrtime.bigint().toString(36)}`;
+		return new Promise((resolve, reject) => {
+			const timeout = setTimeout(() => {
+				pendingSnapshotRequests.delete(requestId);
+				reject(new Error("Snapshot request timed out"));
+			}, 5000);
+
+			pendingSnapshotRequests.set(requestId, (snapshot) => {
+				clearTimeout(timeout);
+				resolve(snapshot);
+			});
+
+			primaryEditorWebContents.send("editor:snapshot-request", { requestId });
+		});
+	});
+
+	ipcMain.on("editor:snapshot-response", (_event, { requestId, snapshot }) => {
+		const resolver = pendingSnapshotRequests.get(requestId);
+		if (resolver) {
+			pendingSnapshotRequests.delete(requestId);
+			resolver(snapshot);
+		}
+	});
+
+	ipcMain.on("editor:broadcast", (event, payload) => {
+		// Forward to all OTHER editor windows (not back to sender).
+		editorWindows.forEach((wc) => {
+			if (wc !== event.sender && !wc.isDestroyed()) {
+				wc.send("editor:event", payload);
+			}
+		});
+	});
+
+	ipcMain.handle("editor:launch-game", async (_event, { sceneId, stepId } = {}) => {
+		const query = {};
+		if (sceneId) query.scene = sceneId;
+		if (stepId) query.step = stepId;
+		createGameWindow({ query });
+		return true;
 	});
 });
 

@@ -18,12 +18,17 @@ const ChangesEditor = {
 		rows.className = "flex flex-col gap-1";
 
 		list.forEach((change, idx) => {
-			rows.appendChild(this._row(change, (updated) => {
+			rows.appendChild(this._row(change, idx, (updated) => {
 				const next = [...list];
 				next[idx] = updated;
 				onChange(next);
 			}, () => {
 				onChange(list.filter((_, i) => i !== idx));
+			}, (from, to) => {
+				const next = [...list];
+				const [moved] = next.splice(from, 1);
+				next.splice(to, 0, moved);
+				onChange(next);
 			}));
 		});
 
@@ -36,14 +41,18 @@ const ChangesEditor = {
 		container.appendChild(rows);
 	},
 
-	_row(change, onUpdate, onRemove) {
+	_row(change, idx, onUpdate, onRemove, onReorder) {
 		const row = document.createElement("div");
 		row.className = "flex gap-1 items-center flex-wrap";
+
+		const handle = EditorPanels.dragHandle();
+		EditorPanels.makeReorderableRow(row, handle, idx, onReorder);
 
 		const entityInput = document.createElement("input");
 		entityInput.className = "px-2 py-1 bg-slate-900 border border-slate-700 rounded text-xs text-slate-200 w-20 focus:outline-none focus:border-indigo-500";
 		entityInput.placeholder = "entity";
 		entityInput.value = change.entity || "player";
+		EditorPanels.bindDatalist(entityInput, "dl-entities", Object.keys(EditorState.rawData?.base?.entities || {}));
 
 		const actionSel = document.createElement("select");
 		actionSel.className = "px-2 py-1 bg-slate-900 border border-slate-700 rounded text-xs text-slate-200 focus:outline-none focus:border-indigo-500";
@@ -74,14 +83,17 @@ const ChangesEditor = {
 				targetInput.value = change.stat || "";
 				amountInput.style.display = "";
 				amountInput.value = change.amount ?? 0;
+				EditorPanels.bindDatalist(targetInput, "dl-stats", EditorState.allStatIdsAcrossEntities());
 			} else if (TRAIT_ACTIONS.has(action)) {
 				targetInput.placeholder = "trait";
 				targetInput.value = change.trait || "";
 				amountInput.style.display = "none";
+				EditorPanels.bindDatalist(targetInput, "dl-traits", EditorState.allTraitIds());
 			} else if (ITEM_ACTIONS.has(action)) {
 				targetInput.placeholder = "item";
 				targetInput.value = change.item || "";
 				amountInput.style.display = "none";
+				EditorPanels.bindDatalist(targetInput, "dl-items", EditorState.allItemIds());
 			}
 		};
 		updateInputs();
@@ -100,6 +112,7 @@ const ChangesEditor = {
 		targetInput.oninput = () => onUpdate(buildChange());
 		amountInput.oninput = () => onUpdate(buildChange());
 
+		row.appendChild(handle);
 		row.appendChild(entityInput);
 		row.appendChild(actionSel);
 		row.appendChild(targetInput);

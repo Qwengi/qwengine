@@ -13,9 +13,9 @@ const ConfigPanel = {
 		form.appendChild(title);
 
 		const fields = [
-			{ key: "starting_scene", label: "Starting Scene", type: "text" },
-			{ key: "starting_location", label: "Starting Location (fallback)", type: "text" },
-			{ key: "on_death", label: "On Death (event or scene id)", type: "text" },
+			{ key: "starting_scene", label: "Starting Scene", type: "text", suggest: "scenes" },
+			{ key: "starting_location", label: "Starting Location (fallback)", type: "text", suggest: "locations" },
+			{ key: "on_death", label: "On Death (event or scene id)", type: "text", suggest: "deathTargets" },
 			{ key: "stat_training_diminishing_returns", label: "Diminishing Returns Factor", type: "number" },
 			{ key: "font_scale", label: "Font Scale", type: "number" },
 			{ key: "enable_images", label: "Enable Images", type: "checkbox" },
@@ -23,7 +23,19 @@ const ConfigPanel = {
 			{ key: "show_compiled_registry", label: "Show Debug Registry", type: "checkbox" },
 		];
 
-		fields.forEach(({ key, label, type }) => {
+		const suggestionsFor = (kind) => {
+			switch (kind) {
+				case "scenes": return Object.keys(EditorState.rawData?.base?.scenes || {});
+				case "locations": return EditorState.allLocationIds();
+				case "deathTargets": return [
+					...Object.keys(EditorState.rawData?.base?.events || {}),
+					...Object.keys(EditorState.rawData?.base?.scenes || {}),
+				];
+				default: return [];
+			}
+		};
+
+		fields.forEach(({ key, label, type, suggest }) => {
 			if (type === "checkbox") {
 				const row = EditorPanels.checkboxInput(label, config[key], (v) => {
 					config[key] = v;
@@ -36,6 +48,7 @@ const ConfigPanel = {
 				input.type = type;
 				input.value = config[key] ?? "";
 				if (type === "number") input.step = "any";
+				if (suggest) EditorPanels.bindDatalist(input, `dl-config-${key}`, suggestionsFor(suggest));
 				input.oninput = () => {
 					config[key] = type === "number" ? Number(input.value) : input.value;
 					EditorState.markDirty("config");
@@ -47,11 +60,7 @@ const ConfigPanel = {
 		const saveBtn = document.createElement("button");
 		saveBtn.className = "px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-sm font-bold transition-all mt-2";
 		saveBtn.textContent = "Save Config";
-		saveBtn.onclick = async () => {
-			await EditorState.save("config");
-			const warnings = EditorValidation.validate();
-			EditorValidation.render(warnings);
-		};
+		saveBtn.onclick = () => EditorShell.saveOne("config");
 		form.appendChild(saveBtn);
 
 		container.appendChild(form);

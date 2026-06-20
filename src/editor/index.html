@@ -20,6 +20,31 @@
     <header class="bg-slate-800 border-b border-slate-700 px-4 py-2 flex items-center gap-4 shrink-0">
         <h1 class="text-sm font-bold text-indigo-400 tracking-wide">Story Editor</h1>
         <span id="editor-status" class="text-xs text-slate-500 italic"></span>
+        <div class="ml-auto flex items-center gap-2">
+            <div class="flex items-center gap-1 mr-1 text-xs text-slate-500">
+                <button id="editor-zoom-out"
+                    class="px-2 py-1 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded font-bold"
+                    title="Decrease editor font size (⌘-)">A−</button>
+                <button id="editor-zoom-label"
+                    class="px-1 text-slate-500 hover:text-slate-200 font-mono"
+                    title="Reset zoom (⌘0)">100%</button>
+                <button id="editor-zoom-in"
+                    class="px-2 py-1 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded font-bold"
+                    title="Increase editor font size (⌘+)">A+</button>
+            </div>
+            <button id="editor-undo"
+                class="px-2 py-1 bg-slate-700 hover:bg-slate-600 disabled:opacity-40 disabled:cursor-not-allowed text-slate-200 rounded text-xs font-bold"
+                title="Undo (⌘Z)">↶</button>
+            <button id="editor-redo"
+                class="px-2 py-1 bg-slate-700 hover:bg-slate-600 disabled:opacity-40 disabled:cursor-not-allowed text-slate-200 rounded text-xs font-bold"
+                title="Redo (⌘⇧Z)">↷</button>
+            <button id="editor-reload"
+                class="px-3 py-1 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded text-xs font-bold"
+                title="Reload all data files from disk, discarding unsaved changes">Reload</button>
+            <button id="editor-save-all"
+                class="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded text-xs font-bold"
+                title="Save every dirty file (⌘⇧S)">Save All</button>
+        </div>
     </header>
 
     <!-- Main layout: nav | content | validation -->
@@ -50,6 +75,7 @@
     <script src="./components/ChangesEditor.js"></script>
     <script src="./components/DialogueEditor.js"></script>
     <script src="./components/ConnectionEditor.js"></script>
+    <script src="./components/ProceedEditor.js"></script>
     <script src="./components/SVGGraph.js"></script>
 
     <!-- Editor panels -->
@@ -63,7 +89,9 @@
     <script src="./panels/ScenesPanel.js"></script>
 
     <!-- Editor core -->
+    <script src="./editorSync.js"></script>
     <script src="./editorState.js"></script>
+    <script src="./editorZoom.js"></script>
     <script src="./validation.js"></script>
     <script src="./editor.js"></script>
 </body>

@@ -46,6 +46,7 @@ const ConnectionEditor = {
 		idInput.className = "px-2 py-1 bg-slate-950 border border-slate-700 rounded text-xs text-slate-200 flex-1 focus:outline-none focus:border-indigo-500";
 		idInput.placeholder = "location id";
 		idInput.value = id || "";
+		EditorPanels.bindDatalist(idInput, "dl-locations", EditorState.allLocationIds());
 
 		const metaToggle = document.createElement("button");
 		metaToggle.className = "text-xs text-slate-500 hover:text-indigo-400 px-2";

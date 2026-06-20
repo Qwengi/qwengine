@@ -125,11 +125,7 @@ const StatsPanel = {
 			const saveBtn = document.createElement("button");
 			saveBtn.className = "px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-sm font-bold transition-all mt-4";
 			saveBtn.textContent = "Save Stats";
-			saveBtn.onclick = async () => {
-				await EditorState.save("stats");
-				const warnings = EditorValidation.validate();
-				EditorValidation.render(warnings);
-			};
+			saveBtn.onclick = () => EditorShell.saveOne("stats");
 			detailCol.appendChild(saveBtn);
 		};
 
@@ -142,39 +138,6 @@ const StatsPanel = {
 			btn.onclick = () => {
 				selectedEntity = entityId;
 				selectedStat = null;
-				renderEntityList();
-				renderStatList();
-				detailCol.innerHTML = "";
-			};
-			entityCol.appendChild(btn);
-		});
-
-		const renderEntityList = () => {
-			const btns = entityCol.querySelectorAll("button");
-			btns.forEach((btn) => {
-				btn.className = `w-full text-left px-3 py-2 text-sm border-b border-slate-800/50 transition-colors ${
-					btn.textContent === selectedEntity ? "bg-indigo-900/40 text-indigo-300" : "text-slate-300 hover:bg-slate-800/50"
-				}`;
-			});
-		};
-
-		Object.keys(entities).forEach((entityId) => {
-			const btn = entityCol.querySelector(`button`);
-		});
-
-		// Re-render entity list properly
-		entityCol.innerHTML = "";
-		entityCol.appendChild(entityHeader);
-		Object.keys(entities).forEach((entityId) => {
-			const btn = document.createElement("button");
-			btn.className = `w-full text-left px-3 py-2 text-sm border-b border-slate-800/50 transition-colors ${
-				entityId === selectedEntity ? "bg-indigo-900/40 text-indigo-300" : "text-slate-300 hover:bg-slate-800/50"
-			}`;
-			btn.textContent = entityId;
-			btn.onclick = () => {
-				selectedEntity = entityId;
-				selectedStat = null;
-				// Re-highlight
 				entityCol.querySelectorAll("button").forEach((b) => {
 					b.className = `w-full text-left px-3 py-2 text-sm border-b border-slate-800/50 transition-colors ${
 						b.textContent === selectedEntity ? "bg-indigo-900/40 text-indigo-300" : "text-slate-300 hover:bg-slate-800/50"
